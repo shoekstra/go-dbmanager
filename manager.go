@@ -13,6 +13,7 @@ type Manager interface {
 	DatabaseExists(databaseName string) (bool, error)
 	CreateUser(userConfig User) error
 	UserExists(username string) (bool, error)
+	GrantPermissions(username, databaseName string, grants []Grant) error
 }
 
 // databaseManager is the internal implementation of the Manager interface
@@ -30,7 +31,39 @@ func (m *databaseManager) initialize(options ...func(*Connection)) {
 
 // Database represents the configuration for creating a database
 type Database struct {
-	Name string `json:"name"`
+	Name              string             `json:"name"`
+	DefaultPrivileges []DefaultPrivilege `json:"default_privileges"`
+}
+
+// DefaultPrivilege contains the default privileges in a database for a user or role.
+type DefaultPrivilege struct {
+	Role      string   `json:"role"`
+	Schema    string   `json:"schema"`
+	Grant     []string `json:"grant"`
+	On        string   `json:"on"`
+	To        string   `json:"to"`
+	WithGrant bool     `json:"with_grant"`
+}
+
+// Grant represents a set of permissions granted to a user.
+type Grant struct {
+	// Optional: Specify the target database
+	Database string `json:"database"`
+
+	// Optional: Specify the target schema
+	Schema string `json:"schema"`
+
+	// Optional: Specify the target Sequence
+	Sequence string `json:"sequence"`
+
+	// Optional: Specify the target table
+	Table string `json:"table"`
+
+	// Required: List of privileges (e.g., "ALL", "CONNECT", "USAGE", "SELECT", etc.)
+	Privileges []string `json:"privileges"`
+
+	// Optional: Grant option
+	WithGrant bool `json:"with_grant"`
 }
 
 // User represents the configuration for creating a user
