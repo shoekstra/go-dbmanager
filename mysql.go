@@ -54,3 +54,8 @@ func (m *mysqlManager) UserExists(name string) (bool, error) {
 	// Additional MySQL specific logic to check if a user exists
 	return false, nil
 }
+
+// GrantPermissions grants permissions to a user based on the provided Grant options.
+func (m *mysqlManager) GrantPermissions(username, database string, grants []Grant) error {
+	return nil
+}

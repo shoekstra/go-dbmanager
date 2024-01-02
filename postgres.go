@@ -13,6 +13,7 @@ type postgresManager struct {
 	databaseManager
 }
 
+// newPostgresManager creates a new PostgreSQL manager.
 func newPostgresManager(options ...func(*Connection)) Manager {
 	manager := &postgresManager{
 		databaseManager: databaseManager{
@@ -27,6 +28,7 @@ func newPostgresManager(options ...func(*Connection)) Manager {
 	return manager
 }
 
+// Connect connects to the PostgreSQL server.
 func (m *postgresManager) Connect() error {
 	log.Printf("Connecting to %s:%s as %s\n", m.connection.Host, m.connection.Port, m.connection.Username)
 
@@ -46,8 +48,19 @@ func (m *postgresManager) Connect() error {
 	return nil
 }
 
+// connectionStrings returns a list of connection strings for the specified database.
+func (m *postgresManager) connectionString(connection Connection) string {
+	connectionString := fmt.Sprintf("host=%s port=%s user=%s dbname=%s sslmode=%s",
+		connection.Host, connection.Port, connection.Username, connection.Database, connection.SSLMode)
+	if m.connection.Password != "" {
+		connectionString += fmt.Sprintf(" password=%s", m.connection.Password)
+	}
+	return connectionString
+}
+
+// Disconnect disconnects from the PostgreSQL server.
 func (m *postgresManager) Disconnect() error {
-	fmt.Println("Disconnecting...")
+	log.Println("Disconnecting...")
 
 	if err := m.db.Close(); err != nil {
 		return fmt.Errorf("error closing connection to PostgreSQL database: %w", err)
@@ -56,10 +69,24 @@ func (m *postgresManager) Disconnect() error {
 	return nil
 }
 
+// CreateDatabase creates and updates a database. It will create the database if it doesn't already exist
+// and apply the default privileges if provided.
 func (m *postgresManager) CreateDatabase(database Database) error {
-	log.Printf("Creating database: %s\n", database.Name)
+	// Create the database if it doesn't already exist
+	if err := m.createDatabase(database); err != nil {
+		return err
+	}
 
-	// Check if the database already exists
+	// Apply default privileges
+	if err := m.alterDefaultPrivileges(database.Name, database.DefaultPrivileges); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// createDatabase creates a new database.
+func (m *postgresManager) createDatabase(database Database) error {
 	if exists, err := m.DatabaseExists(database.Name); err != nil {
 		return err
 	} else if exists {
@@ -67,16 +94,66 @@ func (m *postgresManager) CreateDatabase(database Database) error {
 		return nil
 	}
 
-	// Create the database
 	query := fmt.Sprintf("CREATE DATABASE %s", database.Name)
 
 	if _, err := m.db.Exec(query); err != nil {
 		return err
 	}
 
-	log.Printf("Created database %s\n", database.Name)
+	log.Printf("Created database: %s\n", database.Name)
 
 	return nil
+}
+
+// alterDefaultPrivileges alters the default privileges in a database for a user or role.
+//
+// This needs to be done in a separate connection to the database where the permissions are being granted
+// and after the users or roles mentioned in the "To" field have been created or it will return an error.
+func (m *postgresManager) alterDefaultPrivileges(database string, privileges []DefaultPrivilege) error {
+	// Create new client using the database where permissions are being granted
+	db := &postgresManager{
+		databaseManager: databaseManager{
+			connection: Connection{
+				Host:     m.connection.Host,
+				Database: database,
+				Port:     m.connection.Port,
+				Username: m.connection.Username,
+				Password: m.connection.Password,
+				SSLMode:  m.connection.SSLMode,
+			},
+		},
+	}
+
+	// Connect to the database
+	if err := db.Connect(); err != nil {
+		return err
+	}
+	defer db.Disconnect()
+
+	for _, privilege := range privileges {
+		query := m.alterDefaultPrivilegeQuery(database, privilege)
+		log.Printf("Altering default permissions in database %s: %s", database, query)
+		if _, err := db.db.Exec(query); err != nil {
+			return fmt.Errorf("error altering default privilege: %w", err)
+		}
+	}
+
+	log.Printf("Applied default privileges for database %s\n", database)
+
+	return nil
+}
+
+// alterDefaultPrivilege alters the default privileges in a database for a user or role.
+func (m *postgresManager) alterDefaultPrivilegeQuery(database string, privilege DefaultPrivilege) string {
+	query := "ALTER DEFAULT PRIVILEGES"
+	if privilege.Role != "" {
+		query += fmt.Sprintf(" FOR ROLE %s", QuoteIdentifier(privilege.Role))
+	}
+	query += fmt.Sprintf(" IN SCHEMA %s GRANT %s ON %s TO %s", QuoteIdentifier(privilege.Schema), strings.Join(privilege.Grant, ", "), privilege.On, QuoteIdentifier(privilege.To))
+	if privilege.WithGrant {
+		query += " WITH GRANT OPTION"
+	}
+	return query
 }
 
 // DatabaseExists checks if the specified database exists.
@@ -90,6 +167,7 @@ func (m *postgresManager) DatabaseExists(name string) (bool, error) {
 	return exists, nil
 }
 
+// CreateUser creates and manages a user. It will create the user if it doesn't already exist.
 func (m *postgresManager) CreateUser(user User) error {
 	log.Printf("Creating user: %s\n", user.Name)
 
@@ -112,6 +190,8 @@ func (m *postgresManager) CreateUser(user User) error {
 		return err
 	}
 
+	log.Printf("Created user: %s\n", user.Name)
+
 	return nil
 }
 
@@ -126,12 +206,206 @@ func (m *postgresManager) UserExists(name string) (bool, error) {
 	return exists, nil
 }
 
-// connectionStrings returns a list of connection strings for the specified database.
-func (m *postgresManager) connectionString(connection Connection) string {
-	connectionString := fmt.Sprintf("host=%s port=%s user=%s dbname=%s sslmode=%s",
-		connection.Host, connection.Port, connection.Username, connection.Database, connection.SSLMode)
-	if m.connection.Password != "" {
-		connectionString += fmt.Sprintf(" password=%s", m.connection.Password)
+// GrantPermissions grants permissions to a user based on the provided Grant options.
+func (m *postgresManager) GrantPermissions(username, database string, grants []Grant) error {
+	// Check if the user exists
+	if exists, err := m.UserExists(username); err != nil {
+		return err
+	} else if !exists {
+		log.Printf("User %s does not exist, skipping\n", username)
+		return nil
 	}
-	return connectionString
+
+	// Grant permissions
+	for _, grant := range grants {
+		log.Printf("Processing grant: %v", grant)
+
+		if err := m.grantPermission(username, grant); err != nil {
+			return fmt.Errorf("error granting permissions: %w", err)
+		}
+	}
+
+	return nil
+}
+
+// grantPermission grants a single permission to a user.
+func (m *postgresManager) grantPermission(username string, grant Grant) error {
+	var query string
+
+	// Create new client using the database where permissions are being granted,
+	// we also use this client to check if the user already has the permissions
+	db := &postgresManager{
+		databaseManager: databaseManager{
+			connection: Connection{
+				Host:     m.connection.Host,
+				Database: grant.Database,
+				Port:     m.connection.Port,
+				Username: m.connection.Username,
+				Password: m.connection.Password,
+				SSLMode:  m.connection.SSLMode,
+			},
+		},
+	}
+	// Connect to the database
+	if err := db.Connect(); err != nil {
+		return err
+	}
+	defer db.Disconnect()
+
+	// Construct the grant query based on the provided options
+	if grant.Database != "" && grant.Schema == "" {
+		if hasPermissions, err := db.hasDatabasePrivilege(username, grant.Database, grant.Privileges); err != nil {
+			return err
+		} else if hasPermissions {
+			log.Printf("User %s already has permissions on database %s, skipping\n", username, grant.Database)
+			return nil
+		}
+
+		query = m.grantDatabasePermissionQuery(username, grant)
+	} else if grant.Database != "" && grant.Schema != "" {
+		if grant.Table != "" {
+			if hasPermissions, err := db.hasTablePrivilege(username, grant.Schema, grant.Table, grant.Privileges); err != nil {
+				return err
+			} else if hasPermissions {
+				log.Printf("User %s already has permissions on table %s in database %s, skipping\n", username, grant.Table, grant.Database)
+				return nil
+			}
+		} else if grant.Sequence != "" {
+			if hasPermissions, err := db.hasSequencePrivilege(username, grant.Schema, grant.Sequence, grant.Privileges); err != nil {
+				return err
+			} else if hasPermissions {
+				log.Printf("User %s already has permissions on sequence %s in database %s, skipping\n", username, grant.Table, grant.Database)
+				return nil
+			}
+		} else {
+			if hasPermissions, err := db.hasSchemaPrivilege(username, grant.Schema, grant.Privileges); err != nil {
+				return err
+			} else if hasPermissions {
+				log.Printf("User %s already has permissions on schema %s in database %s, skipping\n", username, grant.Table, grant.Database)
+				return nil
+			}
+		}
+
+		query = m.grantSchemaPermissionQuery(username, grant)
+	} else {
+		return fmt.Errorf("invalid grant options")
+	}
+
+	// Execute the grant query
+	if _, err := db.db.Exec(query); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// grantDatabasePermission grants a permission on a database to a user.
+func (m *postgresManager) grantDatabasePermissionQuery(username string, grant Grant) string {
+	log.Printf("Granting %s permission to %s database", username, grant.Database)
+	query := fmt.Sprintf("GRANT %s ON DATABASE %s TO %s", strings.Join(grant.Privileges, ", "), QuoteIdentifier(grant.Database), QuoteIdentifier(username))
+	// Add WITH GRANT OPTION if GrantOption is true
+	if grant.WithGrant {
+		query += " WITH GRANT OPTION"
+	}
+	return query
+}
+
+// grantSchemaPermission grants a permission on a schema to a user.
+func (m *postgresManager) grantSchemaPermissionQuery(username string, grant Grant) string {
+	query := fmt.Sprintf("GRANT %s ON", strings.Join(grant.Privileges, ", "))
+
+	switch {
+	case grant.Sequence == "*":
+		log.Printf("Granting permissions to all sequences in schema %s", grant.Schema)
+		query += fmt.Sprintf(" ALL SEQUENCES IN SCHEMA %s", QuoteIdentifier(grant.Schema))
+
+	case grant.Sequence != "":
+		log.Printf("Granting permissions to sequence in schema %s", grant.Schema)
+		query += fmt.Sprintf(" SEQUENCE %s.%s", QuoteIdentifier(grant.Schema), QuoteIdentifier(grant.Sequence))
+
+	case grant.Table == "*":
+		log.Printf("Granting permissions to all tables in schema %s", grant.Schema)
+		query += fmt.Sprintf(" ALL TABLES IN SCHEMA %s", QuoteIdentifier(grant.Schema))
+
+	case grant.Table != "":
+		log.Printf("Granting permissions to table in schema %s", grant.Schema)
+		query += fmt.Sprintf(" TABLE %s.%s", QuoteIdentifier(grant.Schema), QuoteIdentifier(grant.Table))
+	}
+
+	query += fmt.Sprintf(" TO %s", QuoteIdentifier(username))
+
+	if grant.WithGrant {
+		query += " WITH GRANT OPTION"
+	}
+
+	return query
+}
+
+// hasDatabasePrivilege checks if a user has the specified privileges on a database.
+func (m *postgresManager) hasDatabasePrivilege(username, database string, privileges []string) (bool, error) {
+	if privileges[0] == "ALL" {
+		privileges = []string{"CREATE", "CONNECT", "TEMPORARY", "TEMP"}
+	}
+	query := fmt.Sprintf("SELECT has_database_privilege('%s', '%s', '%s')",
+		username, database, strings.Join(privileges, ", "))
+	var hasPermission bool
+	if err := m.db.QueryRow(query).Scan(&hasPermission); err != nil {
+		return false, err
+	}
+	return hasPermission, nil
+}
+
+// hasSchemaPrivilege checks if a user has the specified privileges on a schema.
+func (m *postgresManager) hasSchemaPrivilege(username, schema string, privileges []string) (bool, error) {
+	if privileges[0] == "ALL" {
+		privileges = []string{"CREATE", "USAGE"}
+	}
+	query := fmt.Sprintf("SELECT has_schema_privilege('%s', '%s', '%s')",
+		username, schema, strings.Join(privileges, ", "))
+	var hasPermission bool
+	if err := m.db.QueryRow(query).Scan(&hasPermission); err != nil {
+		return false, err
+	}
+	return hasPermission, nil
+}
+
+// hasSequencePrivilege checks if a user has the specified privileges on a sequence.
+func (m *postgresManager) hasSequencePrivilege(username, schema, sequence string, privileges []string) (bool, error) {
+	// We can't check privileges using has_sequence_privilege if the sequence is a wildcard
+	// because it will return an error, so we'll just return false and let the grantPermission
+	// function reapply the permissions.
+	if sequence == "*" {
+		return false, nil
+	}
+	if privileges[0] == "ALL" {
+		privileges = []string{"SELECT", "UPDATE"}
+	}
+	query := fmt.Sprintf("SELECT has_sequence_privilege('%s', '%s.%s', '%s')",
+		username, schema, sequence, strings.Join(privileges, ", "))
+	var hasPermission bool
+	if err := m.db.QueryRow(query).Scan(&hasPermission); err != nil {
+		return false, err
+	}
+	return hasPermission, nil
+}
+
+// hasTablePrivilege checks if a user has the specified privileges on a table.
+func (m *postgresManager) hasTablePrivilege(username, schema, table string, privileges []string) (bool, error) {
+	// We can't check privileges using has_table_privilege if the table is a wildcard
+	// because it will return an error, so we'll just return false and let the grantPermission
+	// function reapply the permissions.
+	if table == "*" {
+		return false, nil
+	}
+
+	if privileges[0] == "ALL" {
+		privileges = []string{"SELECT", "INSERT", "UPDATE", "DELETE", "TRUNCATE", "REFERENCES", "TRIGGER"}
+	}
+	query := fmt.Sprintf("SELECT has_table_privilege('%s', '%s.%s', '%s')",
+		username, schema, table, strings.Join(privileges, ", "))
+	var hasPermission bool
+	if err := m.db.QueryRow(query).Scan(&hasPermission); err != nil {
+		return false, err
+	}
+	return hasPermission, nil
 }
