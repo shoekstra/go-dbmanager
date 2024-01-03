@@ -17,8 +17,9 @@ import (
 )
 
 var (
-	postgresTestManager Manager
-	resource            *dockertest.Resource
+	postgresTestManager        Manager
+	postgresTestManagerChecker *postgresManager
+	resource                   *dockertest.Resource
 
 	adminUser, adminPassword string = "postgres", "password"
 	username, password       string = "mytestuser", "mypassword"
@@ -96,6 +97,10 @@ func TestPostgresManager_ConnectIntegration(t *testing.T) {
 	)
 	// Test connection
 	assert.NoError(t, postgresTestManager.Connect(), "Error connecting to database")
+
+	// Create an engine specific manager for checking
+	postgresTestManagerChecker = postgresTestManager.(*postgresManager)
+
 }
 
 func TestPostgresManager_CreateUserIntegration_Basic(t *testing.T) {
@@ -153,6 +158,48 @@ func TestPostgresManager_CreateDatabaseIntegration_AlterDefaultPrivileges(t *tes
 	// Attempting to create the database again should not return an error
 	err = postgresTestManager.CreateDatabase(Database{Name: database})
 	assert.NoError(t, err, "Error creating database with default privileges when it already exists")
+}
+
+func TestPostgresManager_CreateDatabaseIntegration_Owner(t *testing.T) {
+	owneddb := "owneddb"
+
+	// Create database with owner that doesn't exist should fail
+	err := postgresTestManager.CreateDatabase(Database{Name: owneddb, Owner: "username"})
+	assert.Error(t, err, "Creating database with owner set should have failed if user does not exist")
+
+	// Create database with owner should succeed when user exists
+	err = postgresTestManager.CreateDatabase(Database{Name: owneddb, Owner: username})
+	assert.NoError(t, err, "Error creating database with existing owner set")
+
+	// Check if the database was created successfully
+	exists, err := postgresTestManager.DatabaseExists(owneddb)
+	assert.True(t, exists, "Database not found after CreateDatabase operation with owner set")
+	assert.NoError(t, err, "Error checking if database exists")
+	set, err := postgresTestManagerChecker.getDatabaseOwner(owneddb)
+	assert.Equal(t, username, set, "Owner not set after CreateDatabase operation with owner set")
+	assert.NoError(t, err, "Error checking if owner is set")
+
+	// Attempting to create the database again should not return an error
+	err = postgresTestManager.CreateDatabase(Database{Name: owneddb})
+	assert.NoError(t, err, "Error creating database with owner set when it already exists")
+}
+
+func TestPostgresManager_CreateDatabaseIntegration_UpdateOwner(t *testing.T) {
+	owneddb := "owneddb"
+
+	// Check current owner
+	current, err := postgresTestManagerChecker.getDatabaseOwner(owneddb)
+	assert.Equal(t, username, current, "Owner not set after CreateDatabase operation with owner set")
+	assert.NoError(t, err, "Error checking if owner is set")
+
+	// Attempting to create the database again should not return an error
+	err = postgresTestManager.CreateDatabase(Database{Name: owneddb, Owner: "postgres"})
+	assert.NoError(t, err, "Error updating database with new owner set")
+
+	// Check if the database was updated successfully
+	updated, err := postgresTestManagerChecker.getDatabaseOwner(owneddb)
+	assert.Equal(t, "postgres", updated, "Owner not set after CreateDatabase operation with owner set")
+	assert.NoError(t, err, "Error checking if owner is set")
 }
 
 func TestPostgresManager_GrantPermissionsIntegration_Database(t *testing.T) {
