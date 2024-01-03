@@ -11,7 +11,7 @@ type Manager interface {
 	Connector
 	CreateDatabase(databaseConfig Database) error
 	CreateUser(userConfig User) error
-	GrantPermissions(username, databaseName string, grants []Grant) error
+	GrantPermissions(user User) error
 	Manage(databases []Database, users []User) error
 }
 
@@ -68,9 +68,10 @@ type Grant struct {
 
 // User represents the configuration for creating a user
 type User struct {
-	Name     string  `json:"name"`
-	Password string  `json:"password"`
-	Grants   []Grant `json:"grants"`
+	Name     string   `json:"name"`
+	Password string   `json:"password"`
+	Grants   []Grant  `json:"grants"`
+	Roles    []string `json:"roles"`
 }
 
 // New creates a new Manager instance based on the provided engine.

@@ -212,7 +212,7 @@ func TestPostgresManager_GrantPermissionsIntegration_Database(t *testing.T) {
 	}
 
 	// Perform the actual operation
-	err := postgresTestManager.GrantPermissions(username, database, grants)
+	err := postgresTestManager.GrantPermissions(User{Name: username, Grants: grants})
 	assert.NoError(t, err, "Error granting permissions")
 }
 
@@ -228,7 +228,7 @@ func TestPostgresManager_GrantPermissionsIntegration_AllSequences(t *testing.T) 
 	}
 
 	// Perform the actual operation
-	err := postgresTestManager.GrantPermissions(username, database, grants)
+	err := postgresTestManager.GrantPermissions(User{Name: username, Grants: grants})
 	assert.NoError(t, err, "Error granting permissions")
 }
 
@@ -244,8 +244,28 @@ func TestPostgresManager_GrantPermissionsIntegration_AllTables(t *testing.T) {
 	}
 
 	// Perform the actual operation
-	err := postgresTestManager.GrantPermissions(username, database, grants)
+	err := postgresTestManager.GrantPermissions(User{Name: username, Grants: grants})
 	assert.NoError(t, err, "Error granting permissions")
+}
+
+func TestPostgresManager_GrantPermissionsIntegration_AddRole(t *testing.T) {
+	// Create a new role
+	role := "myrole"
+	err := postgresTestManager.CreateUser(User{Name: role})
+	assert.NoError(t, err, "Error creating role")
+
+	// Assign the role to the user
+	err = postgresTestManager.GrantPermissions(User{Name: username, Roles: []string{role}})
+	assert.NoError(t, err, "Error granting permissions")
+
+	// Check if the role was assigned successfully
+	set, err := postgresTestManagerChecker.hasRole(username, role)
+	assert.NoError(t, err, "Error checking if user has role")
+	assert.True(t, set, "User does not have role after GrantPermissions operation")
+
+	// Attempting to assign the role again should not return an error
+	err = postgresTestManager.GrantPermissions(User{Name: username, Roles: []string{role}})
+	assert.NoError(t, err, "Error granting permissions when role is already assigned")
 }
 
 func TestPostgresManager_ManagerIntegration(t *testing.T) {

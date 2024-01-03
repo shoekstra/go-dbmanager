@@ -17,11 +17,23 @@ func (m *postgresManager) CreateUser(user User) error {
 		return nil
 	}
 
-	// Create the user
-	query := fmt.Sprintf("CREATE USER %s", QuoteIdentifier(user.Name))
+	query := "CREATE"
+
+	// If a password is set, we're creating a user, otherwise we're creating a role/group
+	if user.Password != "" {
+		query += " USER"
+	} else {
+		query += " ROLE"
+	}
+	query += fmt.Sprintf(" %s", QuoteIdentifier(user.Name))
 
 	if user.Password != "" {
 		query += fmt.Sprintf(" WITH LOGIN PASSWORD '%s'", user.Password)
+	}
+
+	// Add the user to the specified groups/roles
+	if len(user.Roles) > 0 {
+		query += fmt.Sprintf(" IN ROLE %s", strings.Join(user.Roles, ", "))
 	}
 
 	if _, err := m.db.Exec(query); err != nil {
@@ -42,4 +54,30 @@ func (m *postgresManager) userExists(name string) (bool, error) {
 		return false, err
 	}
 	return exists, nil
+}
+
+// updateUser updates the specified user.
+func (m *postgresManager) updateUser(user User) error {
+	// Check if the user already exists
+	if exists, err := m.userExists(user.Name); err != nil {
+		return err
+	} else if !exists {
+		log.Printf("User %s does not exist, skipping\n", user.Name)
+		return nil
+	}
+
+	// Update the user
+	query := fmt.Sprintf("ALTER USER %s", QuoteIdentifier(user.Name))
+
+	if user.Password != "" {
+		query += fmt.Sprintf(" WITH LOGIN PASSWORD '%s'", user.Password)
+	}
+
+	if _, err := m.db.Exec(query); err != nil {
+		return err
+	}
+
+	log.Printf("Updated user: %s\n", user.Name)
+
+	return nil
 }
