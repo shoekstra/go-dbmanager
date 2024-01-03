@@ -6,7 +6,7 @@ import (
 
 func main() {
 	databaseName := "mytestdb"
-	username, password := "mytestuser", "password"
+	owner, user, password := "myowner", "mytestuser", "password"
 
 	// Example usage with PostgreSQL
 	dbm, err := dbmanager.New(
@@ -25,18 +25,20 @@ func main() {
 	}
 	defer dbm.Disconnect()
 
-	// Create user: this always needs to happen first otherwise the default privileges cannot be set
-	if err := dbm.CreateUser(dbmanager.User{Name: username, Password: password}); err != nil {
-		panic(err)
+	// Create users: this always needs to happen first otherwise the default privileges cannot be set
+	for _, user := range []string{owner, user} {
+		if err := dbm.CreateUser(dbmanager.User{Name: user, Password: password}); err != nil {
+			panic(err)
+		}
 	}
 
 	defaultPrivileges := []dbmanager.DefaultPrivilege{
-		{Role: "postgres", Schema: "public", Grant: []string{"ALL"}, On: "tables", To: username},
-		{Role: "postgres", Schema: "public", Grant: []string{"USAGE", "SELECT"}, On: "SEQUENCES", To: username},
+		{Role: owner, Schema: "public", Grant: []string{"ALL"}, On: "tables", To: user},
+		{Role: owner, Schema: "public", Grant: []string{"USAGE", "SELECT"}, On: "SEQUENCES", To: user},
 	}
 
 	// Create database
-	if err := dbm.CreateDatabase(dbmanager.Database{Name: databaseName, DefaultPrivileges: defaultPrivileges}); err != nil {
+	if err := dbm.CreateDatabase(dbmanager.Database{Name: databaseName, Owner: user, DefaultPrivileges: defaultPrivileges}); err != nil {
 		panic(err)
 	}
 
@@ -46,7 +48,7 @@ func main() {
 		{Database: databaseName, Privileges: []string{"USAGE", "SELECT"}, Schema: "public", Sequence: "*"},
 		{Database: databaseName, Privileges: []string{"ALL"}, Schema: "public", Table: "*"},
 	}
-	if err := dbm.GrantPermissions(username, databaseName, grants); err != nil {
+	if err := dbm.GrantPermissions(user, databaseName, grants); err != nil {
 		panic(err)
 	}
 }

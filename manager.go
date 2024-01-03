@@ -33,6 +33,7 @@ func (m *databaseManager) initialize(options ...func(*Connection)) {
 type Database struct {
 	Name              string             `json:"name"`
 	DefaultPrivileges []DefaultPrivilege `json:"default_privileges"`
+	Owner             string             `json:"owner"`
 }
 
 // DefaultPrivilege contains the default privileges in a database for a user or role.
