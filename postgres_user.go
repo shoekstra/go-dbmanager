@@ -9,10 +9,8 @@ import (
 
 // CreateUser creates and manages a user. It will create the user if it doesn't already exist.
 func (m *postgresManager) CreateUser(user User) error {
-	log.Printf("Creating user: %s\n", user.Name)
-
 	// Check if the user already exists
-	if exists, err := m.UserExists(user.Name); err != nil {
+	if exists, err := m.userExists(user.Name); err != nil {
 		return err
 	} else if exists {
 		log.Printf("User %s already exists, skipping\n", user.Name)
@@ -35,8 +33,8 @@ func (m *postgresManager) CreateUser(user User) error {
 	return nil
 }
 
-// UserExists checks if the specified user exists.
-func (m *postgresManager) UserExists(name string) (bool, error) {
+// userExists checks if the specified user exists.
+func (m *postgresManager) userExists(name string) (bool, error) {
 	var exists bool
 	query := "SELECT 1 FROM pg_roles WHERE rolname = $1 LIMIT 1"
 	err := m.db.QueryRow(query, strings.ToLower(name)).Scan(&exists)

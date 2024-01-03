@@ -109,7 +109,7 @@ func TestPostgresManager_CreateUserIntegration_Basic(t *testing.T) {
 	assert.NoError(t, err, "Error creating user")
 
 	// Check if the user was created successfully
-	exists, err := postgresTestManager.UserExists(username)
+	exists, err := postgresTestManagerChecker.userExists(username)
 	assert.True(t, exists, "User not found after CreateUser operation")
 	assert.NoError(t, err, "Error checking if user exists")
 
@@ -124,7 +124,7 @@ func TestPostgresManager_CreateDatabaseIntegration_Basic(t *testing.T) {
 	assert.NoError(t, err, "Error creating database")
 
 	// Check if the database was created successfully
-	exists, err := postgresTestManager.DatabaseExists(database)
+	exists, err := postgresTestManagerChecker.databaseExists(database)
 	assert.True(t, exists, "Database not found after CreateDatabase operation")
 	assert.NoError(t, err, "Error checking if database exists")
 
@@ -151,7 +151,7 @@ func TestPostgresManager_CreateDatabaseIntegration_AlterDefaultPrivileges(t *tes
 	assert.NoError(t, err, "Error creating database with default privileges")
 
 	// Check if the database was created successfully
-	exists, err := postgresTestManager.DatabaseExists(database)
+	exists, err := postgresTestManagerChecker.databaseExists(database)
 	assert.True(t, exists, "Database not found after CreateDatabase operation with default privileges")
 	assert.NoError(t, err, "Error checking if database exists")
 
@@ -172,7 +172,7 @@ func TestPostgresManager_CreateDatabaseIntegration_Owner(t *testing.T) {
 	assert.NoError(t, err, "Error creating database with existing owner set")
 
 	// Check if the database was created successfully
-	exists, err := postgresTestManager.DatabaseExists(owneddb)
+	exists, err := postgresTestManagerChecker.databaseExists(owneddb)
 	assert.True(t, exists, "Database not found after CreateDatabase operation with owner set")
 	assert.NoError(t, err, "Error checking if database exists")
 	set, err := postgresTestManagerChecker.getDatabaseOwner(owneddb)
@@ -278,17 +278,17 @@ func TestPostgresManager_ManagerIntegration(t *testing.T) {
 	assert.NoError(t, err, "Error managing databases and users")
 
 	// Check if the database was created successfully
-	exists, err := postgresTestManager.DatabaseExists(managedDatabase)
+	exists, err := postgresTestManagerChecker.databaseExists(managedDatabase)
 	assert.True(t, exists, "Database not found after Manage operation")
 	assert.NoError(t, err, "Error checking if database exists")
 
 	// Check if the user was created successfully
-	exists, err = postgresTestManager.UserExists(managedUser)
+	exists, err = postgresTestManagerChecker.userExists(managedUser)
 	assert.True(t, exists, "User not found after Manage operation")
 	assert.NoError(t, err, "Error checking if user exists")
 
 	// Check if the owner was created successfully
-	exists, err = postgresTestManager.UserExists(managedOwner)
+	exists, err = postgresTestManagerChecker.userExists(managedOwner)
 	assert.True(t, exists, "Owner not found after Manage operation")
 	assert.NoError(t, err, "Error checking if owner exists")
 }

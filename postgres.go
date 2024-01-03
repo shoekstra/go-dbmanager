@@ -72,7 +72,7 @@ func (m *postgresManager) Disconnect() error {
 // GrantPermissions grants permissions to a user based on the provided Grant options.
 func (m *postgresManager) GrantPermissions(username, database string, grants []Grant) error {
 	// Check if the user exists
-	if exists, err := m.UserExists(username); err != nil {
+	if exists, err := m.userExists(username); err != nil {
 		return err
 	} else if !exists {
 		log.Printf("User %s does not exist, skipping\n", username)

@@ -10,9 +10,7 @@ import (
 type Manager interface {
 	Connector
 	CreateDatabase(databaseConfig Database) error
-	DatabaseExists(databaseName string) (bool, error)
 	CreateUser(userConfig User) error
-	UserExists(username string) (bool, error)
 	GrantPermissions(username, databaseName string, grants []Grant) error
 	Manage(databases []Database, users []User) error
 }

@@ -30,7 +30,7 @@ func (m *postgresManager) CreateDatabase(database Database) error {
 
 // createDatabase creates a new database.
 func (m *postgresManager) createDatabase(database Database) error {
-	if exists, err := m.DatabaseExists(database.Name); err != nil {
+	if exists, err := m.databaseExists(database.Name); err != nil {
 		return err
 	} else if exists {
 		log.Printf("Database %s already exists, skipping\n", database.Name)
@@ -42,7 +42,7 @@ func (m *postgresManager) createDatabase(database Database) error {
 	// Add owner if provided, if the owner is not provided then the current user will be the owner. If an
 	// owner if provided we need to validate the user exists before creating the database.
 	if database.Owner != "" {
-		if exists, err := m.UserExists(database.Owner); err != nil {
+		if exists, err := m.userExists(database.Owner); err != nil {
 			return err
 		} else if !exists {
 			return fmt.Errorf("owner %s does not exist", database.Owner)
@@ -57,6 +57,17 @@ func (m *postgresManager) createDatabase(database Database) error {
 	log.Printf("Created database: %s\n", database.Name)
 
 	return nil
+}
+
+// databaseExists checks if the specified database exists.
+func (m *postgresManager) databaseExists(name string) (bool, error) {
+	var exists bool
+	query := "SELECT 1 FROM pg_database WHERE datname = $1"
+	err := m.db.QueryRow(query, name).Scan(&exists)
+	if err != nil && err != sql.ErrNoRows {
+		return false, err
+	}
+	return exists, nil
 }
 
 // updateDatabase updates a database.
@@ -91,17 +102,6 @@ func (m *postgresManager) getDatabaseOwner(database string) (string, error) {
 		return "", err
 	}
 	return owner, nil
-}
-
-// DatabaseExists checks if the specified database exists.
-func (m *postgresManager) DatabaseExists(name string) (bool, error) {
-	var exists bool
-	query := "SELECT 1 FROM pg_database WHERE datname = $1"
-	err := m.db.QueryRow(query, name).Scan(&exists)
-	if err != nil && err != sql.ErrNoRows {
-		return false, err
-	}
-	return exists, nil
 }
 
 // alterDefaultPrivileges alters the default privileges in a database for a user or role.

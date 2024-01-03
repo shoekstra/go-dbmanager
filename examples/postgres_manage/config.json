@@ -4,8 +4,8 @@
             "name": "testdb",
             "owner": "testowner",
             "default_privileges": [
-                { "role": "postgres", "schema": "public", "grant": ["ALL"], "on": "tables", "to": "testuser" },
-                { "role": "postgres", "schema": "public", "grant": ["USAGE", "SELECT"], "on": "SEQUENCES", "to": "testuser" }
+                { "role": "testowner", "schema": "public", "grant": ["ALL"], "on": "tables", "to": "testuser" },
+                { "role": "testowner", "schema": "public", "grant": ["USAGE", "SELECT"], "on": "SEQUENCES", "to": "testuser" }
             ]
         }
     ],

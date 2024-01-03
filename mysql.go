@@ -43,22 +43,11 @@ func (m *mysqlManager) CreateDatabase(database Database) error {
 	return nil
 }
 
-// DatabaseExists checks if the specified database exists.
-func (m *mysqlManager) DatabaseExists(name string) (bool, error) {
-	// Additional MySQL specific logic to check if a database exists
-	return false, nil
-}
-
 // CreateUser creates a user based on the provided User options.
 func (m *mysqlManager) CreateUser(user User) error {
 	log.Printf("Creating user: %s\n", user.Name)
 	// Additional MySQL specific logic for creating a user
 	return nil
-}
-
-func (m *mysqlManager) UserExists(name string) (bool, error) {
-	// Additional MySQL specific logic to check if a user exists
-	return false, nil
 }
 
 // GrantPermissions grants permissions to a user based on the provided Grant options.
