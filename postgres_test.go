@@ -118,6 +118,40 @@ func TestPostgresManager_CreateUserIntegration_Basic(t *testing.T) {
 	assert.NoError(t, err, "Error creating user when it already exists")
 }
 
+func TestPostgresManager_CreateUserIntegration_BasicDashes(t *testing.T) {
+	username := "my-test-user"
+
+	// Perform the actual operation
+	err := postgresTestManager.CreateUser(User{Name: username, Password: "password"})
+	assert.NoError(t, err, "Error creating user")
+
+	// Check if the user was created successfully
+	exists, err := postgresTestManagerChecker.userExists(username)
+	assert.True(t, exists, "User not found after CreateUser operation")
+	assert.NoError(t, err, "Error checking if user exists")
+
+	// Attempting to create the user again should not return an error
+	err = postgresTestManager.CreateUser(User{Name: username, Password: "password"})
+	assert.NoError(t, err, "Error creating user when it already exists")
+}
+
+func TestPostgresManager_CreateUserIntegration_BasicUnderscores(t *testing.T) {
+	username := "my_test_user"
+
+	// Perform the actual operation
+	err := postgresTestManager.CreateUser(User{Name: username, Password: "password"})
+	assert.NoError(t, err, "Error creating user")
+
+	// Check if the user was created successfully
+	exists, err := postgresTestManagerChecker.userExists(username)
+	assert.True(t, exists, "User not found after CreateUser operation")
+	assert.NoError(t, err, "Error checking if user exists")
+
+	// Attempting to create the user again should not return an error
+	err = postgresTestManager.CreateUser(User{Name: username, Password: "password"})
+	assert.NoError(t, err, "Error creating user when it already exists")
+}
+
 func TestPostgresManager_CreateDatabaseIntegration_Basic(t *testing.T) {
 	// Perform the actual operation
 	err := postgresTestManager.CreateDatabase(Database{Name: database})
@@ -251,6 +285,46 @@ func TestPostgresManager_GrantPermissionsIntegration_AllTables(t *testing.T) {
 func TestPostgresManager_GrantPermissionsIntegration_AddRole(t *testing.T) {
 	// Create a new role
 	role := "myrole"
+	err := postgresTestManager.CreateUser(User{Name: role})
+	assert.NoError(t, err, "Error creating role")
+
+	// Assign the role to the user
+	err = postgresTestManager.GrantPermissions(User{Name: username, Roles: []string{role}})
+	assert.NoError(t, err, "Error granting permissions")
+
+	// Check if the role was assigned successfully
+	set, err := postgresTestManagerChecker.hasRole(username, role)
+	assert.NoError(t, err, "Error checking if user has role")
+	assert.True(t, set, "User does not have role after GrantPermissions operation")
+
+	// Attempting to assign the role again should not return an error
+	err = postgresTestManager.GrantPermissions(User{Name: username, Roles: []string{role}})
+	assert.NoError(t, err, "Error granting permissions when role is already assigned")
+}
+
+func TestPostgresManager_GrantPermissionsIntegration_AddRoleWithDashes(t *testing.T) {
+	// Create a new role
+	role := "my-role"
+	err := postgresTestManager.CreateUser(User{Name: role})
+	assert.NoError(t, err, "Error creating role")
+
+	// Assign the role to the user
+	err = postgresTestManager.GrantPermissions(User{Name: username, Roles: []string{role}})
+	assert.NoError(t, err, "Error granting permissions")
+
+	// Check if the role was assigned successfully
+	set, err := postgresTestManagerChecker.hasRole(username, role)
+	assert.NoError(t, err, "Error checking if user has role")
+	assert.True(t, set, "User does not have role after GrantPermissions operation")
+
+	// Attempting to assign the role again should not return an error
+	err = postgresTestManager.GrantPermissions(User{Name: username, Roles: []string{role}})
+	assert.NoError(t, err, "Error granting permissions when role is already assigned")
+}
+
+func TestPostgresManager_GrantPermissionsIntegration_AddRoleWithUnderscores(t *testing.T) {
+	// Create a new role
+	role := "my_role"
 	err := postgresTestManager.CreateUser(User{Name: role})
 	assert.NoError(t, err, "Error creating role")
 

@@ -31,11 +31,6 @@ func (m *postgresManager) CreateUser(user User) error {
 		query += fmt.Sprintf(" WITH LOGIN PASSWORD '%s'", user.Password)
 	}
 
-	// Add the user to the specified groups/roles
-	if len(user.Roles) > 0 {
-		query += fmt.Sprintf(" IN ROLE %s", strings.Join(user.Roles, ", "))
-	}
-
 	if _, err := m.db.Exec(query); err != nil {
 		return err
 	}
