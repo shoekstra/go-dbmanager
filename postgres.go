@@ -69,45 +69,6 @@ func (m *postgresManager) Disconnect() error {
 	return nil
 }
 
-// CreateUser creates and manages a user. It will create the user if it doesn't already exist.
-func (m *postgresManager) CreateUser(user User) error {
-	log.Printf("Creating user: %s\n", user.Name)
-
-	// Check if the user already exists
-	if exists, err := m.UserExists(user.Name); err != nil {
-		return err
-	} else if exists {
-		log.Printf("User %s already exists, skipping\n", user.Name)
-		return nil
-	}
-
-	// Create the user
-	query := fmt.Sprintf("CREATE USER %s", QuoteIdentifier(user.Name))
-
-	if user.Password != "" {
-		query += fmt.Sprintf(" WITH LOGIN PASSWORD '%s'", user.Password)
-	}
-
-	if _, err := m.db.Exec(query); err != nil {
-		return err
-	}
-
-	log.Printf("Created user: %s\n", user.Name)
-
-	return nil
-}
-
-// UserExists checks if the specified user exists.
-func (m *postgresManager) UserExists(name string) (bool, error) {
-	var exists bool
-	query := "SELECT 1 FROM pg_roles WHERE rolname = $1 LIMIT 1"
-	err := m.db.QueryRow(query, strings.ToLower(name)).Scan(&exists)
-	if err != nil && err != sql.ErrNoRows {
-		return false, err
-	}
-	return exists, nil
-}
-
 // GrantPermissions grants permissions to a user based on the provided Grant options.
 func (m *postgresManager) GrantPermissions(username, database string, grants []Grant) error {
 	// Check if the user exists
@@ -310,4 +271,32 @@ func (m *postgresManager) hasTablePrivilege(username, schema, table string, priv
 		return false, err
 	}
 	return hasPermission, nil
+}
+
+// Manage manages the databases and users based on the provided options.
+func (m *postgresManager) Manage(databases []Database, users []User) error {
+	// Create users
+	for _, user := range users {
+		if err := m.CreateUser(user); err != nil {
+			return err
+		}
+	}
+
+	// Create databases
+	for _, database := range databases {
+		if err := m.CreateDatabase(database); err != nil {
+			return err
+		}
+	}
+
+	// Grant permissions
+	for _, user := range users {
+		for _, grant := range user.Grants {
+			if err := m.GrantPermissions(user.Name, grant.Database, []Grant{grant}); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
 }

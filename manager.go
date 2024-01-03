@@ -14,6 +14,7 @@ type Manager interface {
 	CreateUser(userConfig User) error
 	UserExists(username string) (bool, error)
 	GrantPermissions(username, databaseName string, grants []Grant) error
+	Manage(databases []Database, users []User) error
 }
 
 // databaseManager is the internal implementation of the Manager interface
@@ -69,8 +70,9 @@ type Grant struct {
 
 // User represents the configuration for creating a user
 type User struct {
-	Name     string `json:"name"`
-	Password string `json:"password"`
+	Name     string  `json:"name"`
+	Password string  `json:"password"`
+	Grants   []Grant `json:"grants"`
 }
 
 // New creates a new Manager instance based on the provided engine.
