@@ -1,0 +1,27 @@
+{
+    "databases": [
+        {
+            "name": "testdb",
+            "owner": "testowner",
+            "default_privileges": [
+                { "role": "postgres", "schema": "public", "grant": ["ALL"], "on": "tables", "to": "testuser" },
+                { "role": "postgres", "schema": "public", "grant": ["USAGE", "SELECT"], "on": "SEQUENCES", "to": "testuser" }
+            ]
+        }
+    ],
+    "users": [
+        {
+            "name": "testowner"
+        },
+        {
+            "name": "testuser",
+            "password": "testpassword",
+            "roles": ["postgres"],
+            "grants": [
+                { "database": "testdb", "privileges": ["ALL"] },
+                { "database": "testdb", "privileges": ["USAGE", "SELECT"], "schema": "public", "sequence": "*" },
+                { "database": "testdb", "privileges": ["ALL"], "schema": "public", "table": "*" }
+            ]
+        }
+    ]
+}

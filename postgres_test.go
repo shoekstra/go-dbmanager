@@ -248,6 +248,51 @@ func TestPostgresManager_GrantPermissionsIntegration_AllTables(t *testing.T) {
 	assert.NoError(t, err, "Error granting permissions")
 }
 
+func TestPostgresManager_ManagerIntegration(t *testing.T) {
+	managedUser := "manageduser"
+	managedDatabase := "manageddb"
+	managedOwner := "managedowner"
+
+	databases := []Database{
+		{
+			Name:  managedDatabase,
+			Owner: managedUser,
+			DefaultPrivileges: []DefaultPrivilege{
+				{Role: "postgres", Schema: "public", Grant: []string{"ALL"}, On: "tables", To: username},
+				{Role: "postgres", Schema: "public", Grant: []string{"USAGE", "SELECT"}, On: "SEQUENCES", To: username},
+			},
+		},
+	}
+	userGrants := []Grant{
+		{Database: managedDatabase, Privileges: []string{"ALL"}},
+		{Database: managedDatabase, Privileges: []string{"USAGE", "SELECT"}, Schema: "public", Sequence: "*"},
+		{Database: managedDatabase, Privileges: []string{"ALL"}, Schema: "public", Table: "*"},
+	}
+	users := []User{
+		{Name: managedUser, Password: "password", Grants: userGrants},
+		{Name: managedOwner, Password: "password"},
+	}
+
+	// Perform the actual operation
+	err := postgresTestManager.Manage(databases, users)
+	assert.NoError(t, err, "Error managing databases and users")
+
+	// Check if the database was created successfully
+	exists, err := postgresTestManager.DatabaseExists(managedDatabase)
+	assert.True(t, exists, "Database not found after Manage operation")
+	assert.NoError(t, err, "Error checking if database exists")
+
+	// Check if the user was created successfully
+	exists, err = postgresTestManager.UserExists(managedUser)
+	assert.True(t, exists, "User not found after Manage operation")
+	assert.NoError(t, err, "Error checking if user exists")
+
+	// Check if the owner was created successfully
+	exists, err = postgresTestManager.UserExists(managedOwner)
+	assert.True(t, exists, "Owner not found after Manage operation")
+	assert.NoError(t, err, "Error checking if owner exists")
+}
+
 func TestPostgresManager_DisconnectIntegration(t *testing.T) {
 	// Test disconnection
 	assert.NoError(t, postgresTestManager.Disconnect(), "Error disconnecting from database")

@@ -24,6 +24,13 @@ func WithHost(host string) func(*Connection) {
 	}
 }
 
+// WithDatabase sets the database in the connection configuration
+func WithDatabase(database string) func(*Connection) {
+	return func(c *Connection) {
+		c.Database = database
+	}
+}
+
 // WithPort sets the port in the connection configuration
 func WithPort(port string) func(*Connection) {
 	return func(c *Connection) {
