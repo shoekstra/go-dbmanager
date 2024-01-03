@@ -48,7 +48,7 @@ func main() {
 		{Database: databaseName, Privileges: []string{"USAGE", "SELECT"}, Schema: "public", Sequence: "*"},
 		{Database: databaseName, Privileges: []string{"ALL"}, Schema: "public", Table: "*"},
 	}
-	if err := dbm.GrantPermissions(user, databaseName, grants); err != nil {
+	if err := dbm.GrantPermissions(dbmanager.User{Name: user, Grants: grants}); err != nil {
 		panic(err)
 	}
 }

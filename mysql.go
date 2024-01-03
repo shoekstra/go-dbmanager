@@ -51,7 +51,7 @@ func (m *mysqlManager) CreateUser(user User) error {
 }
 
 // GrantPermissions grants permissions to a user based on the provided Grant options.
-func (m *mysqlManager) GrantPermissions(username, database string, grants []Grant) error {
+func (m *mysqlManager) GrantPermissions(user User) error {
 	return nil
 }
 
