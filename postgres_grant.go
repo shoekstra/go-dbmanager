@@ -38,6 +38,11 @@ func (m *postgresManager) GrantPermissions(user User) error {
 
 // addRole adds a user to a role.
 func (m *postgresManager) addRole(username, role string) error {
+	// Check if the user is trying to add themselves to the role
+	if username == role {
+		return nil
+	}
+
 	// Check if the user already has the role
 	if hasRole, err := m.hasRole(username, role); err != nil {
 		return err
@@ -58,14 +63,44 @@ func (m *postgresManager) addRole(username, role string) error {
 }
 
 // hasRole checks if the specified user has the specified role.
-func (m *postgresManager) hasRole(user, role string) (bool, error) {
+func (m *postgresManager) hasRole(username, role string) (bool, error) {
+	if username == role {
+		return true, nil
+	}
+
 	var exists bool
 	query := "SELECT 1 FROM pg_roles r JOIN pg_auth_members m ON r.oid = m.roleid JOIN pg_roles u ON m.member = u.oid WHERE r.rolname = $1 AND u.rolname = $2"
-	err := m.db.QueryRow(query, strings.ToLower(role), strings.ToLower(user)).Scan(&exists)
+	err := m.db.QueryRow(query, strings.ToLower(role), strings.ToLower(username)).Scan(&exists)
 	if err != nil && err != sql.ErrNoRows {
 		return false, err
 	}
 	return exists, nil
+}
+
+// removeRole removes a user from a role.
+func (m *postgresManager) removeRole(username, role string) error {
+	// Check if the user is trying to remove themselves from the role
+	if username == role {
+		return nil
+	}
+
+	// Check if the user has the role
+	if hasRole, err := m.hasRole(username, role); err != nil {
+		return err
+	} else if !hasRole {
+		log.Printf("User %s does not have role %s, skipping\n", username, role)
+		return nil
+	}
+
+	// Remove the user from the role
+	query := fmt.Sprintf("REVOKE %s FROM %s", QuoteIdentifier(role), QuoteIdentifier(username))
+	if _, err := m.db.Exec(query); err != nil {
+		return err
+	}
+
+	log.Printf("Removed user %s from role %s\n", username, role)
+
+	return nil
 }
 
 // grantPermission grants a single permission to a user.
@@ -144,13 +179,20 @@ func (m *postgresManager) hasDatabasePrivilege(username, database string, privil
 	if privileges[0] == "ALL" {
 		privileges = []string{"CREATE", "CONNECT", "TEMPORARY", "TEMP"}
 	}
-	query := fmt.Sprintf("SELECT has_database_privilege('%s', '%s', '%s')",
-		username, database, strings.Join(privileges, ", "))
-	var hasPermission bool
-	if err := m.db.QueryRow(query).Scan(&hasPermission); err != nil {
-		return false, err
+
+	for _, privilege := range privileges {
+		query := fmt.Sprintf("SELECT has_database_privilege('%s', '%s', '%s')",
+			username, database, privilege)
+		var hasPermission bool
+		if err := m.db.QueryRow(query).Scan(&hasPermission); err != nil {
+			return false, err
+		}
+		if !hasPermission {
+			return false, nil // If any privilege is not granted, return false
+		}
 	}
-	return hasPermission, nil
+
+	return true, nil // All privileges are granted
 }
 
 // hasTablePrivilege checks if a user has the specified privileges on a table.
@@ -165,13 +207,20 @@ func (m *postgresManager) hasTablePrivilege(username, schema, table string, priv
 	if privileges[0] == "ALL" {
 		privileges = []string{"SELECT", "INSERT", "UPDATE", "DELETE", "TRUNCATE", "REFERENCES", "TRIGGER"}
 	}
-	query := fmt.Sprintf("SELECT has_table_privilege('%s', '%s.%s', '%s')",
-		username, schema, table, strings.Join(privileges, ", "))
-	var hasPermission bool
-	if err := m.db.QueryRow(query).Scan(&hasPermission); err != nil {
-		return false, err
+
+	for _, privilege := range privileges {
+		query := fmt.Sprintf("SELECT has_table_privilege('%s', '%s.%s', '%s')",
+			username, schema, table, privilege)
+		var hasPermission bool
+		if err := m.db.QueryRow(query).Scan(&hasPermission); err != nil {
+			return false, err
+		}
+		if !hasPermission {
+			return false, nil // If any privilege is not granted, return false
+		}
 	}
-	return hasPermission, nil
+
+	return true, nil // All privileges are granted
 }
 
 // hasSequencePrivilege checks if a user has the specified privileges on a sequence.
@@ -182,16 +231,24 @@ func (m *postgresManager) hasSequencePrivilege(username, schema, sequence string
 	if sequence == "*" {
 		return false, nil
 	}
+
 	if privileges[0] == "ALL" {
 		privileges = []string{"SELECT", "UPDATE"}
 	}
-	query := fmt.Sprintf("SELECT has_sequence_privilege('%s', '%s.%s', '%s')",
-		username, schema, sequence, strings.Join(privileges, ", "))
-	var hasPermission bool
-	if err := m.db.QueryRow(query).Scan(&hasPermission); err != nil {
-		return false, err
+
+	for _, privilege := range privileges {
+		query := fmt.Sprintf("SELECT has_sequence_privilege('%s', '%s.%s', '%s')",
+			username, schema, sequence, privilege)
+		var hasPermission bool
+		if err := m.db.QueryRow(query).Scan(&hasPermission); err != nil {
+			return false, err
+		}
+		if !hasPermission {
+			return false, nil // If any privilege is not granted, return false
+		}
 	}
-	return hasPermission, nil
+
+	return true, nil // All privileges are granted
 }
 
 // hasSchemaPrivilege checks if a user has the specified privileges on a schema.
@@ -199,13 +256,20 @@ func (m *postgresManager) hasSchemaPrivilege(username, schema string, privileges
 	if privileges[0] == "ALL" {
 		privileges = []string{"CREATE", "USAGE"}
 	}
-	query := fmt.Sprintf("SELECT has_schema_privilege('%s', '%s', '%s')",
-		username, schema, strings.Join(privileges, ", "))
-	var hasPermission bool
-	if err := m.db.QueryRow(query).Scan(&hasPermission); err != nil {
-		return false, err
+
+	for _, privilege := range privileges {
+		query := fmt.Sprintf("SELECT has_schema_privilege('%s', '%s', '%s')",
+			username, schema, privilege)
+		var hasPermission bool
+		if err := m.db.QueryRow(query).Scan(&hasPermission); err != nil {
+			return false, err
+		}
+		if !hasPermission {
+			return false, nil // If any privilege is not granted, return false
+		}
 	}
-	return hasPermission, nil
+
+	return true, nil // All privileges are granted
 }
 
 // grantDatabasePermission grants a permission on a database to a user.
