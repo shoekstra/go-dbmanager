@@ -9,14 +9,29 @@ import (
 
 // CreateUser creates and manages a user. It will create the user if it doesn't already exist.
 func (m *postgresManager) CreateUser(user User) error {
-	// Create the user if it doesn't already exist
-	if err := m.createUser(user); err != nil {
+	exists, err := m.userExists(user.Name)
+	if err != nil {
 		return err
 	}
 
-	// Update the user
-	if err := m.updateUser(user); err != nil {
-		return err
+	// If the user doesn't exist, create it, otherwise update it
+	if !exists {
+		if err := m.createUser(user); err != nil {
+			return err
+		}
+		log.Printf("Created user: %s\n", user.Name)
+	} else {
+		if err := m.updateUser(user); err != nil {
+			return err
+		}
+		log.Printf("Updated user: %s\n", user.Name)
+	}
+
+	// We can't read back the user's password, so if one is set, we'll just set it again
+	if user.Password != "" {
+		if err := m.setPassword(user.Name, user.Password); err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -24,13 +39,6 @@ func (m *postgresManager) CreateUser(user User) error {
 
 // createUser creates a new user.
 func (m *postgresManager) createUser(user User) error {
-	if exists, err := m.userExists(user.Name); err != nil {
-		return err
-	} else if exists {
-		log.Printf("User %s already exists, skipping\n", user.Name)
-		return nil
-	}
-
 	query := "CREATE"
 
 	// If a password is set, we're creating a user, otherwise we're creating a role/group
@@ -67,26 +75,20 @@ func (m *postgresManager) userExists(name string) (bool, error) {
 
 // updateUser updates the specified user.
 func (m *postgresManager) updateUser(user User) error {
-	// Check if the user already exists
-	if exists, err := m.userExists(user.Name); err != nil {
-		return err
-	} else if !exists {
-		log.Printf("User %s does not exist, skipping\n", user.Name)
-		return nil
+	updated := false
+
+	if updated {
+		log.Printf("Updated user: %s\n", user.Name)
 	}
 
-	// Update the user
-	query := fmt.Sprintf("ALTER USER %s", QuoteIdentifier(user.Name))
+	return nil
+}
 
-	if user.Password != "" {
-		query += fmt.Sprintf(" WITH LOGIN PASSWORD '%s'", user.Password)
-	}
-
+// setPassword sets the password for the specified user.
+func (m *postgresManager) setPassword(name, password string) error {
+	query := fmt.Sprintf("ALTER USER %s WITH LOGIN PASSWORD '%s'", QuoteIdentifier(name), password)
 	if _, err := m.db.Exec(query); err != nil {
 		return err
 	}
-
-	log.Printf("Updated user: %s\n", user.Name)
-
 	return nil
 }
