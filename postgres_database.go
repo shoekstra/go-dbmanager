@@ -109,6 +109,8 @@ func (m *postgresManager) updateDatabaseOwner(database Database) error {
 		return err
 	}
 
+	var removeRoleErr error
+
 	if currentOwner != database.Owner {
 		// RDS wants the user creating the database to be a member of the owner role, so we need to add the
 		// our current user to the owner role before creating the database and then remove it after.
@@ -116,7 +118,7 @@ func (m *postgresManager) updateDatabaseOwner(database Database) error {
 			return err
 		}
 		defer func() {
-			if err := m.removeRole(m.connection.Username, database.Owner); err != nil {
+			if removeRoleErr = m.removeRole(m.connection.Username, database.Owner); err != nil {
 				log.Printf("Error removing user %s from role %s: %v\n", m.connection.Username, database.Owner, err)
 			}
 		}()
@@ -128,7 +130,7 @@ func (m *postgresManager) updateDatabaseOwner(database Database) error {
 		log.Printf("Updated owner of database %s to %s\n", database.Name, database.Owner)
 	}
 
-	return nil
+	return removeRoleErr
 }
 
 // databaseOwner returns the owner of a database.
@@ -166,6 +168,8 @@ func (m *postgresManager) alterDefaultPrivileges(database string, privileges []D
 	}
 	defer db.Disconnect()
 
+	var removeRoleErr error
+
 	for _, privilege := range privileges {
 		// RDS wants the user setting the default privilege to be a member of the role, so we need to add the
 		// our current user to the role before settings the default privilege the database and removing it after.
@@ -174,8 +178,8 @@ func (m *postgresManager) alterDefaultPrivileges(database string, privileges []D
 				log.Printf("Error adding user %s to role %s: %v\n", m.connection.Username, privilege.Role, err)
 			}
 			defer func() {
-				if err := m.removeRole(m.connection.Username, privilege.Role); err != nil {
-					log.Printf("Error removing user %s from role %s: %v\n", m.connection.Username, privilege.Role, err)
+				if removeRoleErr = m.removeRole(m.connection.Username, privilege.Role); removeRoleErr != nil {
+					log.Printf("Error removing user %s from role %s: %v\n", m.connection.Username, privilege.Role, removeRoleErr)
 				}
 			}()
 		}
@@ -189,7 +193,7 @@ func (m *postgresManager) alterDefaultPrivileges(database string, privileges []D
 
 	log.Printf("Applied default privileges for database %s\n", database)
 
-	return nil
+	return removeRoleErr
 }
 
 // alterDefaultPrivilege alters the default privileges in a database for a user or role.
