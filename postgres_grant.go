@@ -40,6 +40,7 @@ func (m *postgresManager) GrantPermissions(user User) error {
 func (m *postgresManager) addRole(username, role string) error {
 	// Check if the user is trying to add themselves to the role
 	if username == role {
+		log.Printf("User %s is trying to add themselves to role %s, skipping\n", username, role)
 		return nil
 	}
 
@@ -81,6 +82,7 @@ func (m *postgresManager) hasRole(username, role string) (bool, error) {
 func (m *postgresManager) removeRole(username, role string) error {
 	// Check if the user is trying to remove themselves from the role
 	if username == role {
+		log.Printf("User %s is trying to remove themselves from role %s, skipping\n", username, role)
 		return nil
 	}
 
