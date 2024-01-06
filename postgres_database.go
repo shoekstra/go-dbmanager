@@ -47,6 +47,18 @@ func (m *postgresManager) createDatabase(database Database) error {
 		} else if !exists {
 			return fmt.Errorf("owner %s does not exist", database.Owner)
 		}
+
+		// RDS wants the user creating the database to be a member of the owner role, so we need to add the
+		// our current user to the owner role before creating the database and then remove it after.
+		if err := m.addRole(m.connection.Username, database.Owner); err != nil {
+			return err
+		}
+		defer func() {
+			if err := m.removeRole(m.connection.Username, database.Owner); err != nil {
+				log.Printf("Error removing user %s from role %s: %v\n", m.connection.Username, database.Owner, err)
+			}
+		}()
+
 		query += fmt.Sprintf(" OWNER %s", QuoteIdentifier(database.Owner))
 	}
 
@@ -72,18 +84,45 @@ func (m *postgresManager) databaseExists(name string) (bool, error) {
 
 // updateDatabase updates a database.
 func (m *postgresManager) updateDatabase(database Database) error {
+	// Update owner if provided
+	if err := m.updateDatabaseOwner(database); err != nil {
+		return err
+	}
+
+	// Update default privileges if provided
+	if err := m.alterDefaultPrivileges(database.Name, database.DefaultPrivileges); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// updateDatabaseOwner updates the owner of a database.
+func (m *postgresManager) updateDatabaseOwner(database Database) error {
+	// If an owner isn't set we won't try to update it
+	if database.Owner == "" {
+		return nil
+	}
+
 	currentOwner, err := m.getDatabaseOwner(database.Name)
 	if err != nil {
 		return err
 	}
 
-	if currentOwner == database.Owner {
-		log.Printf("Owner of database %s is already %s, skipping\n", database.Name, database.Owner)
-		return nil
-	}
+	var removeRoleErr error
 
-	// Update owner if provided
-	if database.Owner != "" {
+	if currentOwner != database.Owner {
+		// RDS wants the user creating the database to be a member of the owner role, so we need to add the
+		// our current user to the owner role before creating the database and then remove it after.
+		if err := m.addRole(m.connection.Username, database.Owner); err != nil {
+			return err
+		}
+		defer func() {
+			if removeRoleErr = m.removeRole(m.connection.Username, database.Owner); err != nil {
+				log.Printf("Error removing user %s from role %s: %v\n", m.connection.Username, database.Owner, err)
+			}
+		}()
+
 		query := fmt.Sprintf("ALTER DATABASE %s OWNER TO %s", database.Name, QuoteIdentifier(database.Owner))
 		if _, err := m.db.Exec(query); err != nil {
 			return err
@@ -91,7 +130,7 @@ func (m *postgresManager) updateDatabase(database Database) error {
 		log.Printf("Updated owner of database %s to %s\n", database.Name, database.Owner)
 	}
 
-	return nil
+	return removeRoleErr
 }
 
 // databaseOwner returns the owner of a database.
@@ -129,7 +168,22 @@ func (m *postgresManager) alterDefaultPrivileges(database string, privileges []D
 	}
 	defer db.Disconnect()
 
+	var removeRoleErr error
+
 	for _, privilege := range privileges {
+		// RDS wants the user setting the default privilege to be a member of the role, so we need to add the
+		// our current user to the role before settings the default privilege the database and removing it after.
+		if privilege.Role != "" || privilege.Role != m.connection.Username {
+			if err := m.addRole(m.connection.Username, privilege.Role); err != nil {
+				log.Printf("Error adding user %s to role %s: %v\n", m.connection.Username, privilege.Role, err)
+			}
+			defer func() {
+				if removeRoleErr = m.removeRole(m.connection.Username, privilege.Role); removeRoleErr != nil {
+					log.Printf("Error removing user %s from role %s: %v\n", m.connection.Username, privilege.Role, removeRoleErr)
+				}
+			}()
+		}
+
 		query := m.alterDefaultPrivilegeQuery(database, privilege)
 		log.Printf("Altering default permissions in database %s: %s", database, query)
 		if _, err := db.db.Exec(query); err != nil {
@@ -139,7 +193,7 @@ func (m *postgresManager) alterDefaultPrivileges(database string, privileges []D
 
 	log.Printf("Applied default privileges for database %s\n", database)
 
-	return nil
+	return removeRoleErr
 }
 
 // alterDefaultPrivilege alters the default privileges in a database for a user or role.
