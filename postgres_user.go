@@ -9,22 +9,13 @@ import (
 
 // CreateUser creates and manages a user. It will create the user if it doesn't already exist.
 func (m *postgresManager) CreateUser(user User) error {
-	exists, err := m.userExists(user.Name)
-	if err != nil {
+	if exists, err := m.userExists(user.Name); err != nil {
 		return err
-	}
-
-	// If the user doesn't exist, create it, otherwise update it
-	if !exists {
+	} else if !exists {
 		if err := m.createUser(user); err != nil {
 			return err
 		}
 		log.Printf("Created user: %s\n", user.Name)
-	} else {
-		if err := m.updateUser(user); err != nil {
-			return err
-		}
-		log.Printf("Updated user: %s\n", user.Name)
 	}
 
 	// We can't read back the user's password, so if one is set, we'll just set it again
@@ -71,17 +62,6 @@ func (m *postgresManager) userExists(name string) (bool, error) {
 		return false, err
 	}
 	return exists, nil
-}
-
-// updateUser updates the specified user.
-func (m *postgresManager) updateUser(user User) error {
-	updated := false
-
-	if updated {
-		log.Printf("Updated user: %s\n", user.Name)
-	}
-
-	return nil
 }
 
 // setPassword sets the password for the specified user.
