@@ -105,7 +105,7 @@ func TestPostgresManager_ConnectIntegration(t *testing.T) {
 
 func TestPostgresManager_CreateUserIntegration_Basic(t *testing.T) {
 	// Perform the actual operation
-	err := postgresTestManager.CreateUser(User{Name: username, Password: "password"})
+	err := postgresTestManager.CreateUser(User{Name: username, Password: password})
 	assert.NoError(t, err, "Error creating user")
 
 	// Check if the user was created successfully
@@ -114,15 +114,24 @@ func TestPostgresManager_CreateUserIntegration_Basic(t *testing.T) {
 	assert.NoError(t, err, "Error checking if user exists")
 
 	// Attempting to create the user again should not return an error
-	err = postgresTestManager.CreateUser(User{Name: username, Password: "password"})
+	err = postgresTestManager.CreateUser(User{Name: username, Password: password})
 	assert.NoError(t, err, "Error creating user when it already exists")
+
+	// Attempting to create the user again with a different password should not return an error
+	err = postgresTestManager.CreateUser(User{Name: username, Password: "newpassword"})
+	assert.NoError(t, err, "Error creating user when it already exists")
+
+	created, err := postgresTestManagerChecker.getUser(username)
+	assert.NoError(t, err, "Error getting user options")
+	assert.Equal(t, username, created.Name, "User name does not match")
+	assert.True(t, created.Options.Login, "User login does not match") // Login shouold be true when a password is set
 }
 
 func TestPostgresManager_CreateUserIntegration_BasicDashes(t *testing.T) {
 	username := "my-test-user"
 
 	// Perform the actual operation
-	err := postgresTestManager.CreateUser(User{Name: username, Password: "password"})
+	err := postgresTestManager.CreateUser(User{Name: username, Password: password})
 	assert.NoError(t, err, "Error creating user")
 
 	// Check if the user was created successfully
@@ -131,7 +140,7 @@ func TestPostgresManager_CreateUserIntegration_BasicDashes(t *testing.T) {
 	assert.NoError(t, err, "Error checking if user exists")
 
 	// Attempting to create the user again should not return an error
-	err = postgresTestManager.CreateUser(User{Name: username, Password: "password"})
+	err = postgresTestManager.CreateUser(User{Name: username, Password: password})
 	assert.NoError(t, err, "Error creating user when it already exists")
 }
 
@@ -139,7 +148,7 @@ func TestPostgresManager_CreateUserIntegration_BasicMixedCase(t *testing.T) {
 	username := "MyTestUser"
 
 	// Perform the actual operation
-	err := postgresTestManager.CreateUser(User{Name: username, Password: "password"})
+	err := postgresTestManager.CreateUser(User{Name: username, Password: password})
 	assert.NoError(t, err, "Error creating user")
 
 	// Check if the user was created successfully
@@ -148,7 +157,7 @@ func TestPostgresManager_CreateUserIntegration_BasicMixedCase(t *testing.T) {
 	assert.NoError(t, err, "Error checking if user exists")
 
 	// Attempting to create the user again should not return an error
-	err = postgresTestManager.CreateUser(User{Name: username, Password: "password"})
+	err = postgresTestManager.CreateUser(User{Name: username, Password: password})
 	assert.NoError(t, err, "Error creating user when it already exists")
 }
 
@@ -156,7 +165,7 @@ func TestPostgresManager_CreateUserIntegration_BasicUnderscores(t *testing.T) {
 	username := "my_test_user"
 
 	// Perform the actual operation
-	err := postgresTestManager.CreateUser(User{Name: username, Password: "password"})
+	err := postgresTestManager.CreateUser(User{Name: username, Password: password})
 	assert.NoError(t, err, "Error creating user")
 
 	// Check if the user was created successfully
@@ -165,7 +174,48 @@ func TestPostgresManager_CreateUserIntegration_BasicUnderscores(t *testing.T) {
 	assert.NoError(t, err, "Error checking if user exists")
 
 	// Attempting to create the user again should not return an error
-	err = postgresTestManager.CreateUser(User{Name: username, Password: "password"})
+	err = postgresTestManager.CreateUser(User{Name: username, Password: password})
+	assert.NoError(t, err, "Error creating user when it already exists")
+}
+
+func TestPostgresManager_CreateUserIntegration_WithOptions(t *testing.T) {
+	username := "mytestuserwithoptions"
+
+	user := User{
+		Name: username,
+		Options: UserOptions{
+			Login:          true,
+			Superuser:      true,
+			CreateDatabase: true,
+			CreateRole:     true,
+			Inherit:        true,
+			Replication:    true,
+			BypassRLS:      true,
+		},
+	}
+
+	// Perform the actual operation
+	err := postgresTestManager.CreateUser(user)
+	assert.NoError(t, err, "Error creating user")
+
+	// Check if the user was created successfully
+	exists, err := postgresTestManagerChecker.userExists(username)
+	assert.True(t, exists, "User not found after CreateUser operation")
+	assert.NoError(t, err, "Error checking if user exists")
+
+	created, err := postgresTestManagerChecker.getUser(username)
+	assert.NoError(t, err, "Error getting user options")
+	assert.Equal(t, user.Name, created.Name, "User name does not match")
+	assert.Equal(t, user.Options.Login, created.Options.Login, "User login does not match")
+	assert.Equal(t, user.Options.Superuser, created.Options.Superuser, "User superuser does not match")
+	assert.Equal(t, user.Options.CreateDatabase, created.Options.CreateDatabase, "User create database does not match")
+	assert.Equal(t, user.Options.CreateRole, created.Options.CreateRole, "User create role does not match")
+	assert.Equal(t, user.Options.Inherit, created.Options.Inherit, "User inherit does not match")
+	assert.Equal(t, user.Options.Replication, created.Options.Replication, "User replication does not match")
+	assert.Equal(t, user.Options.BypassRLS, created.Options.BypassRLS, "User bypass RLS does not match")
+
+	// Attempting to create the user again should not return an error
+	err = postgresTestManager.CreateUser(User{Name: username, Password: password})
 	assert.NoError(t, err, "Error creating user when it already exists")
 }
 
@@ -380,8 +430,8 @@ func TestPostgresManager_ManagerIntegration(t *testing.T) {
 		{Database: managedDatabase, Privileges: []string{"ALL"}, Schema: "public", Table: "*"},
 	}
 	users := []User{
-		{Name: managedUser, Password: "password", Grants: userGrants},
-		{Name: managedOwner, Password: "password"},
+		{Name: managedUser, Password: password, Grants: userGrants},
+		{Name: managedOwner, Password: password},
 	}
 
 	// Perform the actual operation

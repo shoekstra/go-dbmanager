@@ -66,12 +66,37 @@ type Grant struct {
 	WithGrant bool `json:"with_grant"`
 }
 
+// UserOptions represents the configuration for creating a user
+type UserOptions struct {
+	// Login specifies whether the user is allowed to log in to the database. Applicable to PostgreSQL only.
+	Login bool `json:"login"`
+
+	// Superuser specifies whether the user will be a superuser. Applicable to PostgreSQL only.
+	Superuser bool `json:"superuser"`
+
+	// CreateDatabase specifies whether the user will be allowed to create databases. Applicable to PostgreSQL only.
+	CreateDatabase bool `json:"create_database"`
+
+	// CreateRole specifies whether the user will be allowed to create roles. Applicable to PostgreSQL only.
+	CreateRole bool `json:"create_role"`
+
+	// Inherit specifies whether the user will inherit privileges of roles that it is a member of. Applicable to PostgreSQL only.
+	Inherit bool `json:"inherit"`
+
+	// Replication specifies whether the user will be allowed to initiate streaming replication. Applicable to PostgreSQL only.
+	Replication bool `json:"replication"`
+
+	// BypassRLS specifies whether the user will be allowed to bypass row level security policies. Applicable to PostgreSQL only.
+	BypassRLS bool `json:"bypass_rls"`
+}
+
 // User represents the configuration for creating a user
 type User struct {
-	Name     string   `json:"name"`
-	Password string   `json:"password"`
-	Grants   []Grant  `json:"grants"`
-	Roles    []string `json:"roles"`
+	Name     string      `json:"name"`
+	Password string      `json:"password"`
+	Options  UserOptions `json:"options"`
+	Grants   []Grant     `json:"grants"`
+	Roles    []string    `json:"roles"`
 }
 
 // New creates a new Manager instance based on the provided engine.
