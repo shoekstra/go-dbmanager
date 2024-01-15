@@ -4,7 +4,6 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
-	"strings"
 )
 
 // CreateUser creates and manages a user. It will create the user if it doesn't already exist.
@@ -57,7 +56,7 @@ func (m *postgresManager) createUser(user User) error {
 func (m *postgresManager) userExists(name string) (bool, error) {
 	var exists bool
 	query := "SELECT 1 FROM pg_roles WHERE rolname = $1 LIMIT 1"
-	err := m.db.QueryRow(query, strings.ToLower(name)).Scan(&exists)
+	err := m.db.QueryRow(query, name).Scan(&exists)
 	if err != nil && err != sql.ErrNoRows {
 		return false, err
 	}

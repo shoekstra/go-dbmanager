@@ -135,6 +135,23 @@ func TestPostgresManager_CreateUserIntegration_BasicDashes(t *testing.T) {
 	assert.NoError(t, err, "Error creating user when it already exists")
 }
 
+func TestPostgresManager_CreateUserIntegration_BasicMixedCase(t *testing.T) {
+	username := "MyTestUser"
+
+	// Perform the actual operation
+	err := postgresTestManager.CreateUser(User{Name: username, Password: "password"})
+	assert.NoError(t, err, "Error creating user")
+
+	// Check if the user was created successfully
+	exists, err := postgresTestManagerChecker.userExists(username)
+	assert.True(t, exists, "User not found after CreateUser operation")
+	assert.NoError(t, err, "Error checking if user exists")
+
+	// Attempting to create the user again should not return an error
+	err = postgresTestManager.CreateUser(User{Name: username, Password: "password"})
+	assert.NoError(t, err, "Error creating user when it already exists")
+}
+
 func TestPostgresManager_CreateUserIntegration_BasicUnderscores(t *testing.T) {
 	username := "my_test_user"
 
