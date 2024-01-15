@@ -71,7 +71,7 @@ func (m *postgresManager) hasRole(username, role string) (bool, error) {
 
 	var exists bool
 	query := "SELECT 1 FROM pg_roles r JOIN pg_auth_members m ON r.oid = m.roleid JOIN pg_roles u ON m.member = u.oid WHERE r.rolname = $1 AND u.rolname = $2"
-	err := m.db.QueryRow(query, strings.ToLower(role), strings.ToLower(username)).Scan(&exists)
+	err := m.db.QueryRow(query, strings.ToLower(role), username).Scan(&exists)
 	if err != nil && err != sql.ErrNoRows {
 		return false, err
 	}
