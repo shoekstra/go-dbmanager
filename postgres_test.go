@@ -26,6 +26,25 @@ var (
 	database                 string = "mytestdb"
 )
 
+func testPostgresQuery(username, password, database, query string) (sql.Result, error) {
+	m := &postgresManager{
+		databaseManager: databaseManager{
+			connection: Connection{
+				Host:     "localhost",
+				Database: database,
+				Port:     resource.GetPort("5432/tcp"),
+				Username: username,
+				Password: password,
+				SSLMode:  "disable",
+			},
+		},
+	}
+	m.Connect()
+	defer m.Disconnect()
+
+	return m.db.Exec(query)
+}
+
 func TestMain(m *testing.M) {
 	// Disable log output for tests
 	log.SetOutput(io.Discard)
@@ -118,7 +137,8 @@ func TestPostgresManager_CreateUserIntegration_Basic(t *testing.T) {
 	assert.NoError(t, err, "Error creating user when it already exists")
 
 	// Attempting to create the user again with a different password should not return an error
-	err = postgresTestManager.CreateUser(User{Name: username, Password: "newpassword"})
+	password = "newpassword"
+	err = postgresTestManager.CreateUser(User{Name: username, Password: password})
 	assert.NoError(t, err, "Error creating user when it already exists")
 
 	created, err := postgresTestManagerChecker.getUser(username)
@@ -407,6 +427,32 @@ func TestPostgresManager_GrantPermissionsIntegration_AddRoleWithUnderscores(t *t
 	// Attempting to assign the role again should not return an error
 	err = postgresTestManager.GrantPermissions(User{Name: username, Roles: []string{role}})
 	assert.NoError(t, err, "Error granting permissions when role is already assigned")
+}
+
+func TestPostgresManager_GrantPermissionsIntegration_AddSetParameter(t *testing.T) {
+	username := "mytestparameteruser"
+	grants := []Grant{{Parameter: "session_replication_role", Privileges: []string{"SET"}}}
+
+	// Create a new user
+	err := postgresTestManager.CreateUser(User{Name: username, Password: password})
+	assert.NoError(t, err, "Error creating user")
+
+	// Assign permissions to the user
+	err = postgresTestManager.GrantPermissions(User{Name: username, Grants: grants})
+	assert.NoError(t, err, "Error granting permissions")
+
+	// Check if the role was assigned successfully
+	set, err := postgresTestManagerChecker.hasParameterPrivilege(username, "session_replication_role", "SET")
+	assert.NoError(t, err, "Error checking if user has parameter set")
+	assert.True(t, set, "User does not have session_replication_role parameter after GrantPermissions operation")
+
+	// Attempting to assign the role again should not return an error
+	err = postgresTestManager.GrantPermissions(User{Name: username, Grants: grants})
+	assert.NoError(t, err, "Error granting permissions when role is already assigned")
+
+	// Attempt to set the parameter
+	_, err = testPostgresQuery(username, password, database, "SET session_replication_role = replica;")
+	assert.NoError(t, err, "Error setting parameter")
 }
 
 func TestPostgresManager_ManagerIntegration(t *testing.T) {

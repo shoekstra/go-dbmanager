@@ -11,13 +11,14 @@
     ],
     "users": [
         {
-            "name": "testowner"
+            "name": "testowner",
+            "roles": ["postgres"]
         },
         {
             "name": "testuser",
             "password": "testpassword",
-            "roles": ["postgres"],
             "grants": [
+                { "parameter": "session_replication_role", "privileges": ["SET"] },
                 { "database": "testdb", "privileges": ["ALL"] },
                 { "database": "testdb", "privileges": ["USAGE", "SELECT"], "schema": "public", "sequence": "*" },
                 { "database": "testdb", "privileges": ["ALL"], "schema": "public", "table": "*" }
