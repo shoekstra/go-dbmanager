@@ -59,6 +59,9 @@ type Grant struct {
 	// Optional: Specify the target table
 	Table string `json:"table"`
 
+	// Optional: Specify the target parameter (PostgreSQL only)
+	Parameter string `json:"parameter"`
+
 	// Required: List of privileges (e.g., "ALL", "CONNECT", "USAGE", "SELECT", etc.)
 	Privileges []string `json:"privileges"`
 

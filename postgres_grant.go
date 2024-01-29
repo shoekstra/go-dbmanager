@@ -109,13 +109,18 @@ func (m *postgresManager) removeRole(username, role string) error {
 func (m *postgresManager) grantPermission(username string, grant Grant) error {
 	var query string
 
+	database := grant.Database
+	if database == "" {
+		database = "postgres"
+	}
+
 	// Create new client using the database where permissions are being granted,
 	// we also use this client to check if the user already has the permissions
 	db := &postgresManager{
 		databaseManager: databaseManager{
 			connection: Connection{
 				Host:     m.connection.Host,
-				Database: grant.Database,
+				Database: database,
 				Port:     m.connection.Port,
 				Username: m.connection.Username,
 				Password: m.connection.Password,
@@ -130,14 +135,21 @@ func (m *postgresManager) grantPermission(username string, grant Grant) error {
 	defer db.Disconnect()
 
 	// Construct the grant query based on the provided options
-	if grant.Database != "" && grant.Schema == "" {
+	if grant.Database == "" && grant.Parameter != "" {
+		if hasPermissions, err := db.hasParameterPrivilege(username, grant.Parameter, grant.Privileges[0]); err != nil {
+			return err
+		} else if hasPermissions {
+			log.Printf("User %s already has permissions on parameter %s, skipping\n", username, grant.Parameter)
+			return nil
+		}
+		query = m.grantParameterPermissionQuery(username, grant)
+	} else if grant.Database != "" && grant.Schema == "" {
 		if hasPermissions, err := db.hasDatabasePrivilege(username, grant.Database, grant.Privileges); err != nil {
 			return err
 		} else if hasPermissions {
 			log.Printf("User %s already has permissions on database %s, skipping\n", username, grant.Database)
 			return nil
 		}
-
 		query = m.grantDatabasePermissionQuery(username, grant)
 	} else if grant.Database != "" && grant.Schema != "" {
 		if grant.Table != "" {
@@ -162,7 +174,6 @@ func (m *postgresManager) grantPermission(username string, grant Grant) error {
 				return nil
 			}
 		}
-
 		query = m.grantSchemaPermissionQuery(username, grant)
 	} else {
 		return fmt.Errorf("invalid grant options")
@@ -192,6 +203,21 @@ func (m *postgresManager) hasDatabasePrivilege(username, database string, privil
 		if !hasPermission {
 			return false, nil // If any privilege is not granted, return false
 		}
+	}
+
+	return true, nil // All privileges are granted
+}
+
+// hasParameterPrivilege checks if a user has the specified privileges on a parameter.
+func (m *postgresManager) hasParameterPrivilege(username, parameter string, privilege string) (bool, error) {
+	query := fmt.Sprintf("SELECT has_parameter_privilege('%s', '%s', '%s')",
+		username, parameter, privilege)
+	var hasPermission bool
+	if err := m.db.QueryRow(query).Scan(&hasPermission); err != nil {
+		return false, err
+	}
+	if !hasPermission {
+		return false, nil // If any privilege is not granted, return false
 	}
 
 	return true, nil // All privileges are granted
@@ -282,6 +308,19 @@ func (m *postgresManager) grantDatabasePermissionQuery(username string, grant Gr
 	if grant.WithGrant {
 		query += " WITH GRANT OPTION"
 	}
+	return query
+}
+
+// grantParameterPermission grants a permission on a parameter to a user.
+func (m *postgresManager) grantParameterPermissionQuery(username string, grant Grant) string {
+	log.Printf("Granting %s permission to %s parameter", username, grant.Parameter)
+	query := fmt.Sprintf("GRANT %s ON", strings.Join(grant.Privileges, ", "))
+	if grant.Parameter == "*" {
+		query += " ALL PARAMETERS"
+	} else {
+		query += fmt.Sprintf(" PARAMETER %s", QuoteIdentifier(grant.Parameter))
+	}
+	query += fmt.Sprintf(" TO %s", QuoteIdentifier(username))
 	return query
 }
 
