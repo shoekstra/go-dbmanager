@@ -455,6 +455,26 @@ func TestPostgresManager_GrantPermissionsIntegration_AddSetParameter(t *testing.
 	assert.NoError(t, err, "Error setting parameter")
 }
 
+func TestPostgresManager_GrantPermissionsIntegration_RemoveRole(t *testing.T) {
+	role := "myrole"
+	extraRole := "myextrarole"
+
+	err := postgresTestManager.CreateUser(User{Name: role})
+	assert.NoError(t, err, "Error creating role")
+
+	err = postgresTestManager.CreateUser(User{Name: extraRole})
+	assert.NoError(t, err, "Error creating role")
+
+	// Assign both roles and then remove one
+	assert.NoError(t, postgresTestManager.GrantPermissions(User{Name: username, Roles: []string{role, extraRole}}), "Error granting permissions")
+	assert.NoError(t, postgresTestManager.GrantPermissions(User{Name: username, Roles: []string{role}}), "Error granting permissions")
+
+	// Check if the role was removed successfully
+	set, err := postgresTestManagerChecker.hasRole(username, extraRole)
+	assert.NoError(t, err, "Error checking if user has role")
+	assert.False(t, set, "User still has \"myextrarole\" role after GrantPermissions operation")
+}
+
 func TestPostgresManager_ManagerIntegration(t *testing.T) {
 	managedUser := "manageduser"
 	managedDatabase := "manageddb"
