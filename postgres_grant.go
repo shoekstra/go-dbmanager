@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
+	"slices"
 	"strings"
 )
 
@@ -33,7 +34,42 @@ func (m *postgresManager) GrantPermissions(user User) error {
 		}
 	}
 
+	// Remove user from roles not specified in the config
+	roles, err := m.getRoles(user.Name)
+	if err != nil {
+		return err
+	}
+
+	for _, role := range roles {
+		if !slices.Contains(user.Roles, role) {
+			if err := m.removeRole(user.Name, role); err != nil {
+				return fmt.Errorf("error removing user from role: %w", err)
+			}
+		}
+	}
+
 	return nil
+}
+
+// getRoles returns a list of roles for the specified user.
+func (m *postgresManager) getRoles(username string) ([]string, error) {
+	var roles []string
+	query := "SELECT r.rolname FROM pg_roles r JOIN pg_auth_members m ON r.oid = m.roleid JOIN pg_roles u ON m.member = u.oid WHERE u.rolname = $1"
+	rows, err := m.db.Query(query, strings.ToLower(username))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var role string
+		if err := rows.Scan(&role); err != nil {
+			return nil, err
+		}
+		roles = append(roles, role)
+	}
+
+	return roles, nil
 }
 
 // addRole adds a user to a role.
