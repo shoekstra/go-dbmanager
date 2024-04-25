@@ -30,6 +30,19 @@ func (m *postgresManager) CreateDatabase(database Database) error {
 
 // createDatabase creates a new database.
 func (m *postgresManager) createDatabase(database Database) error {
+
+	// drop database if flagged
+	if database.AdditionalFlags != nil && isInArray("recreate", database.AdditionalFlags) {
+
+		if err := m.removeRole(database.Owner, m.connection.Username); err != nil {
+			log.Printf("Error removing user %s from role %s: %v\n", database.Owner, m.connection.Username, err)
+		}
+
+		if err := m.dropDatabase(database); err != nil {
+			return err
+		}
+	}
+
 	if exists, err := m.databaseExists(database.Name); err != nil {
 		return err
 	} else if exists {
@@ -67,6 +80,27 @@ func (m *postgresManager) createDatabase(database Database) error {
 	}
 
 	log.Printf("Created database: %s\n", database.Name)
+
+	return nil
+}
+
+// dropDatabase deletes the database.
+func (m *postgresManager) dropDatabase(database Database) error {
+
+	if exists, err := m.databaseExists(database.Name); err != nil {
+		return err
+	} else if !exists {
+		log.Printf("Database %s doesn't exist, skipping\n", database.Name)
+		return nil
+	}
+
+	query := fmt.Sprintf("DROP DATABASE %s", database.Name)
+
+	if _, err := m.db.Exec(query); err != nil {
+		return err
+	}
+
+	log.Printf("Deleted database: %s\n", database.Name)
 
 	return nil
 }
@@ -207,4 +241,14 @@ func (m *postgresManager) alterDefaultPrivilegeQuery(database string, privilege 
 		query += " WITH GRANT OPTION"
 	}
 	return query
+}
+
+// Function to check if a string is in a array
+func isInArray(item string, arr []string) bool {
+	for _, s := range arr {
+		if s == item {
+			return true
+		}
+	}
+	return false
 }

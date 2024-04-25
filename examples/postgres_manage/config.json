@@ -1,7 +1,16 @@
 {
     "databases": [
         {
-            "name": "testdb",
+            "name": "testdb1",
+            "owner": "testowner",
+            "default_privileges": [
+                { "role": "testowner", "schema": "public", "grant": ["ALL"], "on": "tables", "to": "testuser" },
+                { "role": "testowner", "schema": "public", "grant": ["USAGE", "SELECT"], "on": "SEQUENCES", "to": "testuser" }
+            ],
+            "additional_flags": ["recreate"]
+        },
+        {
+            "name": "testdb2",
             "owner": "testowner",
             "default_privileges": [
                 { "role": "testowner", "schema": "public", "grant": ["ALL"], "on": "tables", "to": "testuser" },
@@ -19,9 +28,9 @@
             "password": "testpassword",
             "grants": [
                 { "parameter": "session_replication_role", "privileges": ["SET"] },
-                { "database": "testdb", "privileges": ["ALL"] },
-                { "database": "testdb", "privileges": ["USAGE", "SELECT"], "schema": "public", "sequence": "*" },
-                { "database": "testdb", "privileges": ["ALL"], "schema": "public", "table": "*" }
+                { "database": "testdb1", "privileges": ["ALL"] },
+                { "database": "testdb1", "privileges": ["USAGE", "SELECT"], "schema": "public", "sequence": "*" },
+                { "database": "testdb1", "privileges": ["ALL"], "schema": "public", "table": "*" }
             ]
         }
     ]

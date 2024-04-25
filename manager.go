@@ -33,6 +33,7 @@ type Database struct {
 	Name              string             `json:"name"`
 	DefaultPrivileges []DefaultPrivilege `json:"default_privileges"`
 	Owner             string             `json:"owner"`
+	AdditionalFlags   []string           `json:"additional_flags,omitempty"`
 }
 
 // DefaultPrivilege contains the default privileges in a database for a user or role.
