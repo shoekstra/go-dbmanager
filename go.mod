@@ -3,7 +3,7 @@ module github.com/shoekstra/go-dbmanager
 go 1.21.5
 
 require (
-	github.com/jackc/pgx/v5 v5.5.5
+	github.com/jackc/pgx/v5 v5.6.0
 	github.com/ory/dockertest/v3 v3.10.0
 )
 
