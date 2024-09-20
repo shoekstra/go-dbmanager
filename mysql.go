@@ -1,8 +1,11 @@
 package dbmanager
 
 import (
+	"database/sql"
 	"fmt"
 	"log"
+
+	_ "github.com/go-sql-driver/mysql"
 )
 
 type mysqlManager struct {
@@ -25,37 +28,47 @@ func newMySQLManager(options ...func(*Connection)) Manager {
 // Connect connects to the MySQL server.
 func (m *mysqlManager) Connect() error {
 	log.Printf("Connecting to %s:%s as %s\n", m.connection.Host, m.connection.Port, m.connection.Username)
-	// Additional MySQL specific logic for establishing a connection
+
+	dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/", m.connection.Username, m.connection.Password, m.connection.Host, m.connection.Port)
+	db, err := sql.Open("mysql", dsn)
+	if err != nil {
+		return fmt.Errorf("failed to connect to MySQL: %w", err)
+	}
+
+	m.db = db
+
 	return nil
 }
 
 // Disconnect disconnects from the MySQL server.
 func (m *mysqlManager) Disconnect() error {
-	fmt.Println("Disconnecting...")
-	// Additional MySQL specific logic for disconnecting
-	return nil
-}
+	log.Println("Disconnecting...")
 
-// CreateDatabase creates a database based on the provided Database options.
-func (m *mysqlManager) CreateDatabase(database Database) error {
-	log.Printf("Creating database: %s\n", database.Name)
-	// Additional MySQL specific logic for creating a database
-	return nil
-}
+	if err := m.db.Close(); err != nil {
+		return fmt.Errorf("failed to disconnect from MySQL: %w", err)
+	}
 
-// CreateUser creates a user based on the provided User options.
-func (m *mysqlManager) CreateUser(user User) error {
-	log.Printf("Creating user: %s\n", user.Name)
-	// Additional MySQL specific logic for creating a user
-	return nil
-}
-
-// GrantPermissions grants permissions to a user based on the provided Grant options.
-func (m *mysqlManager) GrantPermissions(user User) error {
 	return nil
 }
 
 // Manage manages the databases and users based on the provided options.
 func (m *mysqlManager) Manage(databases []Database, users []User) error {
+	log.Println("Managing databases and users")
+
+	for _, db := range databases {
+		if err := m.CreateDatabase(db); err != nil {
+			return err
+		}
+	}
+
+	for _, user := range users {
+		if err := m.CreateUser(user); err != nil {
+			return err
+		}
+		if err := m.GrantPermissions(user); err != nil {
+			return err
+		}
+	}
+
 	return nil
 }

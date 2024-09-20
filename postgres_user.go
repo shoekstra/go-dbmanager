@@ -102,6 +102,15 @@ func (m *postgresManager) getUser(name string) (User, error) {
 	return user, nil
 }
 
+// setPassword sets the password for the specified user.
+func (m *postgresManager) setPassword(name, password string) error {
+	query := fmt.Sprintf("ALTER USER %s WITH LOGIN PASSWORD '%s'", QuoteIdentifier(name), password)
+	if _, err := m.db.Exec(query); err != nil {
+		return err
+	}
+	return nil
+}
+
 // updateUser updates the specified user.
 func (m *postgresManager) updateUser(user User) (bool, error) {
 	query := fmt.Sprintf("ALTER USER %s", QuoteIdentifier(user.Name))
@@ -193,13 +202,4 @@ func (m *postgresManager) userExists(name string) (bool, error) {
 		return false, err
 	}
 	return exists, nil
-}
-
-// setPassword sets the password for the specified user.
-func (m *postgresManager) setPassword(name, password string) error {
-	query := fmt.Sprintf("ALTER USER %s WITH LOGIN PASSWORD '%s'", QuoteIdentifier(name), password)
-	if _, err := m.db.Exec(query); err != nil {
-		return err
-	}
-	return nil
 }
