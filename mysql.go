@@ -28,21 +28,27 @@ func newMySQLManager(options ...func(*Connection)) Manager {
 // Connect connects to the MySQL server.
 func (m *mysqlManager) Connect() error {
 	log.Printf("Connecting to %s:%s as %s\n", m.connection.Host, m.connection.Port, m.connection.Username)
-
 	dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/", m.connection.Username, m.connection.Password, m.connection.Host, m.connection.Port)
 	db, err := sql.Open("mysql", dsn)
 	if err != nil {
 		return fmt.Errorf("failed to connect to MySQL: %w", err)
 	}
 
-	m.db = db
+	if err := db.Ping(); err != nil {
+		return fmt.Errorf("failed to ping MySQL: %w", err)
+	}
 
+	m.db = db
 	return nil
 }
 
 // Disconnect disconnects from the MySQL server.
 func (m *mysqlManager) Disconnect() error {
-	log.Println("Disconnecting...")
+	log.Printf("Disconnecting from %s:%s\n", m.connection.Host, m.connection.Port)
+
+	if m.db == nil {
+		return nil
+	}
 
 	if err := m.db.Close(); err != nil {
 		return fmt.Errorf("failed to disconnect from MySQL: %w", err)

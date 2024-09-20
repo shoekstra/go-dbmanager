@@ -9,7 +9,6 @@ import (
 
 // CreateUser creates and manages a user. It will create the user if it doesn't already exist.
 func (m *postgresManager) CreateUser(user User) error {
-
 	// If the user already exists, we'll update it, otherwise we'll create it
 	exists, err := m.userExists(user.Name)
 	if err != nil {

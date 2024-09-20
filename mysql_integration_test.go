@@ -37,7 +37,9 @@ func testMySQLQuery(username, password, database, query string) (sql.Result, err
 			},
 		},
 	}
-	m.Connect()
+	if err := m.Connect(); err != nil {
+		return nil, err
+	}
 	defer m.Disconnect()
 
 	return m.db.Exec(query)
@@ -55,11 +57,14 @@ func testMySQLQueryForPermissions(username, database string) ([]string, error) {
 			},
 		},
 	}
-	m.Connect()
+	if err := m.Connect(); err != nil {
+		return nil, err
+	}
 	defer m.Disconnect()
 
 	// Query the SCHEMA_PRIVILEGES table to get the privileges for the user on the database
-	rows, err := m.db.Query("SELECT PRIVILEGE_TYPE FROM INFORMATION_SCHEMA.SCHEMA_PRIVILEGES WHERE GRANTEE = ? AND TABLE_SCHEMA = ?", fmt.Sprintf("'%s'@'%%'", username), database)
+	grantee := "'" + username + "'@'%'"
+	rows, err := m.db.Query("SELECT PRIVILEGE_TYPE FROM INFORMATION_SCHEMA.SCHEMA_PRIVILEGES WHERE GRANTEE = ? AND TABLE_SCHEMA = ?", grantee, database)
 	if err != nil {
 		return nil, err
 	}
@@ -170,12 +175,12 @@ func TestMySQLManager_CreateUserIntegration_Basic(t *testing.T) {
 	assert.NoError(t, err, "Error creating user when it already exists")
 
 	// Attempting to create the user again with a different password should not return an error
-	mysqlPassword = "newpassword"
-	err = mysqlTestManager.CreateUser(User{Name: mysqlUsername, Password: mysqlPassword})
+	newPassword := "newpassword"
+	err = mysqlTestManager.CreateUser(User{Name: mysqlUsername, Password: newPassword})
 	assert.NoError(t, err, "Error creating user when it already exists")
 
 	// Check if the user was updated with the new password
-	_, err = testMySQLQuery(mysqlUsername, mysqlPassword, "", "SELECT 1")
+	_, err = testMySQLQuery(mysqlUsername, newPassword, "", "SELECT 1")
 	assert.NoError(t, err)
 }
 
@@ -234,9 +239,11 @@ func TestMySQLManager_GrantPermissionsIntegration_All(t *testing.T) {
 	assert.NoError(t, err)
 
 	// Check if the expected privileges are present
-	expectedPermissions := []string{"ALTER", "ALTER ROUTINE", "CREATE", "CREATE ROUTINE",
+	expectedPermissions := []string{
+		"ALTER", "ALTER ROUTINE", "CREATE", "CREATE ROUTINE",
 		"CREATE TEMPORARY TABLES", "CREATE VIEW", "DELETE", "DROP", "EVENT", "EXECUTE", "INDEX",
-		"INSERT", "LOCK TABLES", "REFERENCES", "SELECT", "SHOW VIEW", "TRIGGER", "UPDATE"}
+		"INSERT", "LOCK TABLES", "REFERENCES", "SELECT", "SHOW VIEW", "TRIGGER", "UPDATE",
+	}
 	for _, expected := range expectedPermissions {
 		assert.Contains(t, permissions, expected)
 	}

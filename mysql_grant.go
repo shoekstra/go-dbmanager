@@ -22,6 +22,11 @@ func (m *mysqlManager) GrantPermissions(user User) error {
 	for _, grant := range user.Grants {
 		log.Printf("Processing grant: %v", grant)
 
+		if len(grant.Privileges) == 0 {
+			log.Printf("Skipping grant with empty privileges for user: %s, database: %s\n", user.Name, grant.Database)
+			continue
+		}
+
 		// Build the base GRANT query
 		grantQuery := fmt.Sprintf("GRANT %s ON %s.* TO '%s'@'%%'",
 			strings.Join(grant.Privileges, ", "), // Join privileges
