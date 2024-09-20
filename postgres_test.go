@@ -19,7 +19,7 @@ import (
 var (
 	postgresTestManager        Manager
 	postgresTestManagerChecker *postgresManager
-	resource                   *dockertest.Resource
+	postgresResource           *dockertest.Resource
 
 	adminUser, adminPassword string = "postgres", "password"
 	username, password       string = "mytestuser", "mypassword"
@@ -32,7 +32,7 @@ func testPostgresQuery(username, password, database, query string) (sql.Result, 
 			connection: Connection{
 				Host:     "localhost",
 				Database: database,
-				Port:     resource.GetPort("5432/tcp"),
+				Port:     postgresResource.GetPort("5432/tcp"),
 				Username: username,
 				Password: password,
 				SSLMode:  "disable",
@@ -61,7 +61,7 @@ func TestMain(m *testing.M) {
 	}
 
 	// pulls an image, creates a container based on it and runs it
-	resource, err = pool.RunWithOptions(&dockertest.RunOptions{
+	postgresResource, err = pool.RunWithOptions(&dockertest.RunOptions{
 		Repository: "postgres",
 		Tag:        "latest",
 		Env: []string{
@@ -78,19 +78,20 @@ func TestMain(m *testing.M) {
 		log.Fatalf("Could not start resource: %s", err)
 	}
 
-	databaseURL := fmt.Sprintf("postgres://%s:%s@%s/postgres?sslmode=disable", adminUser, adminPassword, resource.GetHostPort("5432/tcp"))
-
-	log.Println("Connecting to database on URL: ", databaseURL)
-
-	resource.Expire(120) // Tell docker to hard kill the container in 120 seconds
+	postgresResource.Expire(120) // Tell docker to hard kill the container in 120 seconds
 
 	// exponential backoff-retry, because the application in the container might not be ready to accept connections yet
 	pool.MaxWait = 60 * time.Second
+
 	if err := pool.Retry(func() error {
+		databaseURL := fmt.Sprintf("postgres://%s:%s@%s/postgres?sslmode=disable", adminUser, adminPassword, postgresResource.GetHostPort("5432/tcp"))
+		log.Println("Connecting to database on URL: ", databaseURL)
+
 		db, err := sql.Open("pgx", databaseURL)
 		if err != nil {
 			return err
 		}
+
 		return db.Ping()
 	}); err != nil {
 		log.Fatalf("Could not connect to Docker: %s", err)
@@ -100,7 +101,7 @@ func TestMain(m *testing.M) {
 	code := m.Run()
 
 	// Clean up
-	if err := pool.Purge(resource); err != nil {
+	if err := pool.Purge(postgresResource); err != nil {
 		log.Fatalf("Could not purge resource: %s", err)
 	}
 
@@ -110,7 +111,7 @@ func TestMain(m *testing.M) {
 func TestPostgresManager_ConnectIntegration(t *testing.T) {
 	postgresTestManager = newPostgresManager(
 		WithHost("localhost"),
-		WithPort(resource.GetPort("5432/tcp")),
+		WithPort(postgresResource.GetPort("5432/tcp")),
 		WithUsername(adminUser),
 		WithPassword(adminPassword),
 	)
@@ -119,7 +120,6 @@ func TestPostgresManager_ConnectIntegration(t *testing.T) {
 
 	// Create an engine specific manager for checking
 	postgresTestManagerChecker = postgresTestManager.(*postgresManager)
-
 }
 
 func TestPostgresManager_CreateUserIntegration_Basic(t *testing.T) {
